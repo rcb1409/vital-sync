@@ -1,0 +1,277 @@
+// -------------------------------------------------------
+// Prisma Schema — VitalSync Database
+// -------------------------------------------------------
+// All 12 tables for the application. This file defines
+// the shape of every table, their relationships, and
+// indexes. Prisma generates TypeScript types from this.
+//
+// To apply changes:
+//   npx prisma migrate dev --name description_of_change
+//   npx prisma generate  (regenerates the client types)
+// -------------------------------------------------------
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// =====================================================
+// USERS
+// =====================================================
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  goals        Json?    // { calorie_target, protein_target, target_weight, training_days_per_week }
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workouts         Workout[]
+  workoutTemplates WorkoutTemplate[]
+  nutritionLogs    NutritionLog[]
+  bodyMetrics      BodyMetric[]
+  dailyHabits      DailyHabit[]
+  stravaAccount    StravaAccount?
+  runActivities    RunActivity[]
+  aiConversations  AiConversation[]
+  exercises        Exercise[]       // user-created custom exercises
+
+  @@map("users")
+}
+
+// =====================================================
+// EXERCISES (seeded library + user-custom)
+// =====================================================
+enum MuscleGroup {
+  chest
+  back
+  shoulders
+  biceps
+  triceps
+  legs
+  core
+  cardio
+}
+
+enum Equipment {
+  barbell
+  dumbbell
+  machine
+  cable
+  bodyweight
+  other
+}
+
+model Exercise {
+  id          Int         @id @default(autoincrement())
+  name        String
+  muscleGroup MuscleGroup @map("muscle_group")
+  equipment   Equipment
+  userId      String?     @map("user_id")
+
+  // Relations
+  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutSets WorkoutSet[]
+
+  @@index([muscleGroup])
+  @@index([userId])
+  @@map("exercises")
+}
+
+// =====================================================
+// WORKOUTS + SETS
+// =====================================================
+model Workout {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String   // e.g., "Push Day", "Upper Body"
+  startedAt   DateTime @map("started_at")
+  durationMin Int?     @map("duration_min")
+  notes       String?  @db.Text
+
+  // Relations
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sets WorkoutSet[]
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("workouts")
+}
+
+model WorkoutSet {
+  id         String  @id @default(uuid())
+  workoutId  String  @map("workout_id")
+  exerciseId Int     @map("exercise_id")
+  setNumber  Int     @map("set_number")
+  reps       Int
+  weightKg   Decimal @map("weight_kg") @db.Decimal(6, 2)
+  rpe        Int?    // Rate of Perceived Exertion (1-10)
+  isPr       Boolean @default(false) @map("is_pr")
+
+  // Relations
+  workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+
+  @@index([workoutId])
+  @@index([exerciseId])
+  @@map("workout_sets")
+}
+
+// =====================================================
+// WORKOUT TEMPLATES
+// =====================================================
+model WorkoutTemplate {
+  id        String @id @default(uuid())
+  userId    String @map("user_id")
+  name      String
+  exercises Json   // [{ exercise_id, sets, reps, weight }]
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("workout_templates")
+}
+
+// =====================================================
+// NUTRITION LOGS
+// =====================================================
+enum MealType {
+  breakfast
+  lunch
+  dinner
+  snack
+}
+
+model NutritionLog {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  foodName    String   @map("food_name")
+  calories    Int
+  proteinG    Decimal  @map("protein_g") @db.Decimal(6, 2)
+  carbsG      Decimal  @map("carbs_g") @db.Decimal(6, 2)
+  fatG        Decimal  @map("fat_g") @db.Decimal(6, 2)
+  mealType    MealType @map("meal_type")
+  isSavedMeal Boolean  @default(false) @map("is_saved_meal")
+  date        DateTime @db.Date
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@map("nutrition_logs")
+}
+
+// =====================================================
+// BODY METRICS (weight tracking)
+// =====================================================
+model BodyMetric {
+  id       String   @id @default(uuid())
+  userId   String   @map("user_id")
+  weightKg Decimal  @map("weight_kg") @db.Decimal(5, 2)
+  date     DateTime @db.Date
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date(sort: Desc)])
+  @@map("body_metrics")
+}
+
+// =====================================================
+// DAILY HABITS
+// =====================================================
+model DailyHabit {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  sleepHours    Decimal  @map("sleep_hours") @db.Decimal(3, 1)
+  sleepQuality  Int      @map("sleep_quality") // 1-5
+  waterMl       Int      @map("water_ml")
+  alcohol       Boolean
+  alcoholUnits  Decimal? @map("alcohol_units") @db.Decimal(3, 1)
+  notes         String?  @db.Text
+  date          DateTime @db.Date
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date(sort: Desc)])
+  @@map("daily_habits")
+}
+
+// =====================================================
+// STRAVA ACCOUNTS (OAuth tokens)
+// =====================================================
+model StravaAccount {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  stravaAthleteId  BigInt   @unique @map("strava_athlete_id")
+  accessToken      String   @map("access_token") @db.Text
+  refreshToken     String   @map("refresh_token") @db.Text
+  tokenExpiresAt   DateTime @map("token_expires_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("strava_accounts")
+}
+
+// =====================================================
+// RUN ACTIVITIES
+// =====================================================
+enum RunSource {
+  strava
+  manual
+}
+
+model RunActivity {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  stravaActivityId BigInt?   @unique @map("strava_activity_id")
+  distanceM        Int       @map("distance_m")
+  movingTimeS      Int       @map("moving_time_s")
+  elevationGainM   Int?      @map("elevation_gain_m")
+  averagePaceSPerKm Int      @map("average_pace_s_per_km")
+  startTime        DateTime  @map("start_time")
+  source           RunSource
+  raw              Json?     // Full Strava payload for debugging
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startTime(sort: Desc)])
+  @@map("run_activities")
+}
+
+// =====================================================
+// AI CONVERSATIONS (with context pipeline traces)
+// =====================================================
+model AiConversation {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  question         String   @db.Text
+  response         String   @db.Text
+  contextPlan      Json     @map("context_plan")      // intent classification result
+  contextSnapshot  Json     @map("context_snapshot")   // assembled context per domain
+  webSearchResults Json?    @map("web_search_results") // Tavily results if triggered
+  contextTokens    Int      @map("context_tokens")
+  totalTokens      Int      @map("total_tokens")
+  durationMs       Int      @map("duration_ms")
+  domainsFetched   Int      @map("domains_fetched")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("ai_conversations")
+}

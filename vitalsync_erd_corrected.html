@@ -1,0 +1,265 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.erd-wrap{position:relative;width:100%;min-height:2200px;padding:1rem 0}
+.entity{position:absolute;border-radius:8px;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary);min-width:210px;font-family:var(--font-sans);overflow:hidden}
+.entity-header{padding:6px 10px;font-size:13px;font-weight:500;color:#fff;text-align:center}
+.entity-row{display:flex;gap:6px;padding:3px 10px;font-size:11.5px;color:var(--color-text-secondary);border-top:1px solid var(--color-border-tertiary)}
+.entity-row:nth-child(even){background:var(--color-background-tertiary)}
+.entity-row .col-type{min-width:58px;color:var(--color-text-tertiary);font-family:var(--font-mono);font-size:10.5px}
+.entity-row .col-name{flex:1;font-family:var(--font-mono);font-size:10.5px;color:var(--color-text-primary)}
+.entity-row .col-constraint{min-width:28px;text-align:right;font-size:10px;font-weight:500;color:var(--color-text-info);font-family:var(--font-mono)}
+.entity-row .col-comment{font-size:10px;color:var(--color-text-tertiary);font-style:italic;max-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-purple{background:#534AB7}.h-teal{background:#0F6E56}.h-coral{background:#993C1D}.h-blue{background:#185FA5}.h-amber{background:#854F0B}.h-pink{background:#993556}.h-green{background:#3B6D11}.h-gray{background:#5F5E5A}.h-red{background:#A32D2D}
+svg.rel-lines{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.rel-line{stroke:var(--color-border-secondary);stroke-width:1.2;fill:none}
+.rel-label{font-size:10px;fill:var(--color-text-tertiary);font-family:var(--font-sans)}
+.card-one{stroke:var(--color-border-secondary);stroke-width:1.5;fill:none}
+.card-many{stroke:var(--color-border-secondary);stroke-width:1.2;fill:none}
+</style>
+<div class="erd-wrap" id="erd">
+<!-- User -->
+<div class="entity" id="e-user" style="left:220px;top:20px;min-width:220px">
+<div class="entity-header h-purple">User</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">string</span><span class="col-name">email</span><span class="col-constraint">UK</span></div>
+<div class="entity-row"><span class="col-type">string</span><span class="col-name">password_hash</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">string</span><span class="col-name">name</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">json</span><span class="col-name">goals</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">datetime</span><span class="col-name">created_at</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">datetime</span><span class="col-name">updated_at</span><span class="col-constraint"></span></div>
+</div>
+
+<!-- Exercise -->
+<div class="entity" id="e-exercise" style="left:10px;top:340px;min-width:230px">
+<div class="entity-header h-teal">Exercise</div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">string</span><span class="col-name">name</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">enum</span><span class="col-name">muscle_group</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">enum</span><span class="col-name">equipment</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK</span><span class="col-comment">null = default</span></div>
+</div>
+
+<!-- Workout -->
+<div class="entity" id="e-workout" style="left:410px;top:340px;min-width:220px">
+<div class="entity-header h-coral">Workout</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">string</span><span class="col-name">name</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">datetime</span><span class="col-name">started_at</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">duration_min</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">text</span><span class="col-name">notes</span><span class="col-constraint"></span></div>
+</div>
+
+<!-- WorkoutSet -->
+<div class="entity" id="e-workoutset" style="left:200px;top:620px;min-width:250px">
+<div class="entity-header h-amber">WorkoutSet</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">workout_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">exercise_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">set_number</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">reps</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">decimal</span><span class="col-name">weight_kg</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">rpe</span><span class="col-constraint"></span><span class="col-comment">1–10, nullable</span></div>
+<div class="entity-row"><span class="col-type">boolean</span><span class="col-name">is_pr</span><span class="col-constraint"></span><span class="col-comment">computed</span></div>
+</div>
+
+<!-- WorkoutTemplate -->
+<div class="entity" id="e-template" style="left:10px;top:920px;min-width:220px">
+<div class="entity-header h-blue">WorkoutTemplate</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">string</span><span class="col-name">name</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">json</span><span class="col-name">exercises</span><span class="col-constraint"></span></div>
+</div>
+
+<!-- NutritionLog -->
+<div class="entity" id="e-nutrition" style="left:310px;top:920px;min-width:230px">
+<div class="entity-header h-green">NutritionLog</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">string</span><span class="col-name">food_name</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">calories</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">decimal</span><span class="col-name">protein_g</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">decimal</span><span class="col-name">carbs_g</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">decimal</span><span class="col-name">fat_g</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">enum</span><span class="col-name">meal_type</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">boolean</span><span class="col-name">is_saved_meal</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">date</span><span class="col-name">date</span><span class="col-constraint"></span></div>
+</div>
+
+<!-- BodyMetric -->
+<div class="entity" id="e-bodymetric" style="left:10px;top:1250px;min-width:210px">
+<div class="entity-header h-pink">BodyMetric</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">decimal</span><span class="col-name">weight_kg</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">date</span><span class="col-name">date</span><span class="col-constraint"></span><span class="col-comment">unique/user</span></div>
+</div>
+
+<!-- DailyHabit -->
+<div class="entity" id="e-habit" style="left:280px;top:1250px;min-width:230px">
+<div class="entity-header h-amber">DailyHabit</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">decimal</span><span class="col-name">sleep_hours</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">sleep_quality</span><span class="col-constraint"></span><span class="col-comment">1–5</span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">water_ml</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">boolean</span><span class="col-name">alcohol</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">decimal</span><span class="col-name">alcohol_units</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">date</span><span class="col-name">date</span><span class="col-constraint"></span><span class="col-comment">unique/user</span></div>
+</div>
+
+<!-- StravaAccount -->
+<div class="entity" id="e-strava" style="left:10px;top:1560px;min-width:240px">
+<div class="entity-header h-red">StravaAccount</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK, UK</span></div>
+<div class="entity-row"><span class="col-type">bigint</span><span class="col-name">strava_athlete_id</span><span class="col-constraint">UK</span></div>
+<div class="entity-row"><span class="col-type">text</span><span class="col-name">access_token</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">text</span><span class="col-name">refresh_token</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">datetime</span><span class="col-name">token_expires_at</span><span class="col-constraint"></span></div>
+</div>
+
+<!-- RunActivity -->
+<div class="entity" id="e-run" style="left:310px;top:1560px;min-width:250px">
+<div class="entity-header h-blue">RunActivity</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">bigint</span><span class="col-name">strava_activity_id</span><span class="col-constraint">UK</span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">distance_m</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">moving_time_s</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">elevation_gain_m</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">avg_pace_s_per_km</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">datetime</span><span class="col-name">start_time</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">enum</span><span class="col-name">source</span><span class="col-constraint"></span><span class="col-comment">strava | manual</span></div>
+<div class="entity-row"><span class="col-type">json</span><span class="col-name">raw</span><span class="col-constraint"></span></div>
+</div>
+
+<!-- AiConversation -->
+<div class="entity" id="e-ai" style="left:120px;top:1880px;min-width:260px">
+<div class="entity-header h-gray">AiConversation</div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">id</span><span class="col-constraint">PK</span></div>
+<div class="entity-row"><span class="col-type">uuid</span><span class="col-name">user_id</span><span class="col-constraint">FK</span></div>
+<div class="entity-row"><span class="col-type">text</span><span class="col-name">question</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">text</span><span class="col-name">response</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">json</span><span class="col-name">context_plan</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">json</span><span class="col-name">context_snapshot</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">json</span><span class="col-name">web_search_results</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">context_tokens</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">total_tokens</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">duration_ms</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">int</span><span class="col-name">domains_fetched</span><span class="col-constraint"></span></div>
+<div class="entity-row"><span class="col-type">datetime</span><span class="col-name">created_at</span><span class="col-constraint"></span></div>
+</div>
+
+<svg class="rel-lines" id="rel-svg"></svg>
+</div>
+
+<script>
+function getAnchor(el, side) {
+  const r = el.getBoundingClientRect();
+  const p = el.offsetParent.getBoundingClientRect();
+  const x = el.offsetLeft, y = el.offsetTop, w = el.offsetWidth, h = el.offsetHeight;
+  if (side === 'top') return { x: x + w/2, y };
+  if (side === 'bottom') return { x: x + w/2, y: y + h };
+  if (side === 'left') return { x, y: y + h/2 };
+  if (side === 'right') return { x: x + w, y: y + h/2 };
+}
+
+function crowFoot(svg, x, y, dir, type) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const g = document.createElementNS(ns, 'g');
+  const s = 8;
+  if (type === 'many') {
+    if (dir === 'down') {
+      g.innerHTML = `<line x1="${x}" y1="${y}" x2="${x-s}" y2="${y+s*1.2}" class="rel-line"/><line x1="${x}" y1="${y}" x2="${x+s}" y2="${y+s*1.2}" class="rel-line"/><line x1="${x}" y1="${y}" x2="${x}" y2="${y+s*1.2}" class="rel-line"/>`;
+    } else if (dir === 'up') {
+      g.innerHTML = `<line x1="${x}" y1="${y}" x2="${x-s}" y2="${y-s*1.2}" class="rel-line"/><line x1="${x}" y1="${y}" x2="${x+s}" y2="${y-s*1.2}" class="rel-line"/><line x1="${x}" y1="${y}" x2="${x}" y2="${y-s*1.2}" class="rel-line"/>`;
+    } else if (dir === 'right') {
+      g.innerHTML = `<line x1="${x}" y1="${y}" x2="${x+s*1.2}" y2="${y-s}" class="rel-line"/><line x1="${x}" y1="${y}" x2="${x+s*1.2}" y2="${y+s}" class="rel-line"/><line x1="${x}" y1="${y}" x2="${x+s*1.2}" y2="${y}" class="rel-line"/>`;
+    }
+  } else if (type === 'one') {
+    if (dir === 'down') {
+      g.innerHTML = `<line x1="${x-s}" y1="${y+4}" x2="${x+s}" y2="${y+4}" class="rel-line"/><line x1="${x-s}" y1="${y+8}" x2="${x+s}" y2="${y+8}" class="rel-line"/>`;
+    } else if (dir === 'up') {
+      g.innerHTML = `<line x1="${x-s}" y1="${y-4}" x2="${x+s}" y2="${y-4}" class="rel-line"/><line x1="${x-s}" y1="${y-8}" x2="${x+s}" y2="${y-8}" class="rel-line"/>`;
+    }
+  }
+  svg.appendChild(g);
+}
+
+function drawLine(svg, x1, y1, x2, y2, waypoints, fromType, toType, label) {
+  const ns = 'http://www.w3.org/2000/svg';
+  let d = `M${x1},${y1}`;
+  if (waypoints) {
+    waypoints.forEach(w => d += ` L${w[0]},${w[1]}`);
+  }
+  d += ` L${x2},${y2}`;
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('class', 'rel-line');
+  svg.appendChild(path);
+  if (label) {
+    const mx = (x1+x2)/2, my = (y1+y2)/2;
+    const t = document.createElementNS(ns, 'text');
+    t.setAttribute('x', mx + 6);
+    t.setAttribute('y', my - 4);
+    t.setAttribute('class', 'rel-label');
+    t.textContent = label;
+    svg.appendChild(t);
+  }
+}
+
+const svg = document.getElementById('rel-svg');
+const $ = id => document.getElementById(id);
+
+setTimeout(() => {
+  const rels = [
+    { from: 'e-user', to: 'e-exercise', label: 'creates custom', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-user', to: 'e-workout', label: 'logs', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-exercise', to: 'e-workoutset', label: 'performed in', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-workout', to: 'e-workoutset', label: 'contains', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-user', to: 'e-template', label: 'saves', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-user', to: 'e-nutrition', label: 'tracks', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-user', to: 'e-bodymetric', label: 'weighs', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-user', to: 'e-habit', label: 'records', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-user', to: 'e-strava', label: 'connects', fromSide: 'bottom', toSide: 'top', card: 'one' },
+    { from: 'e-user', to: 'e-run', label: 'runs', fromSide: 'bottom', toSide: 'top', card: 'many' },
+    { from: 'e-user', to: 'e-ai', label: 'asks', fromSide: 'bottom', toSide: 'top', card: 'many' },
+  ];
+
+  const userEl = $('e-user');
+  const userBottom = getAnchor(userEl, 'bottom');
+  const ub = userBottom;
+
+  rels.forEach((r, i) => {
+    const toEl = $(r.to);
+    const toTop = getAnchor(toEl, 'top');
+    const fromEl = $(r.from);
+
+    let fx, fy;
+    if (r.from === 'e-user') {
+      const offsets = { 'e-exercise': -90, 'e-workout': 90, 'e-template': -90, 'e-nutrition': 90, 'e-bodymetric': -90, 'e-habit': 40, 'e-strava': -60, 'e-run': 60, 'e-ai': 0 };
+      fx = ub.x + (offsets[r.to] || 0);
+      fy = ub.y;
+    } else {
+      const a = getAnchor(fromEl, r.fromSide);
+      fx = a.x; fy = a.y;
+    }
+
+    const tx = toTop.x, ty = toTop.y;
+    const midY = fy + (ty - fy) * 0.5;
+
+    let waypoints = null;
+    if (Math.abs(fx - tx) > 10) {
+      waypoints = [[fx, midY], [tx, midY]];
+    }
+
+    drawLine(svg, fx, fy, tx, ty, waypoints, 'one', r.card, r.label);
+
+    const dir = 'down';
+    crowFoot(svg, tx, ty, 'up', r.card);
+  });
+}, 100);
+</script>

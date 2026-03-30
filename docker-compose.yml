@@ -1,0 +1,83 @@
+# docker-compose.yml
+# -------------------------------------------------------
+# This file defines the services (containers) that Docker
+# will run for our local development environment.
+#
+# Think of each "service" as a mini-computer running one
+# specific program. Instead of installing MySQL and Redis
+# directly on your Mac, Docker runs them in isolated
+# containers that you can start/stop/destroy freely.
+#
+# Usage:
+#   docker compose up -d      (start everything in background)
+#   docker compose down        (stop everything)
+#   docker compose down -v     (stop everything AND delete data)
+# -------------------------------------------------------
+
+services:
+  # =====================================================
+  # SERVICE 1: MySQL Database
+  # =====================================================
+  # This is where ALL of our app's data lives — users,
+  # workouts, nutrition logs, AI conversations, etc.
+  #
+  # MySQL is a "relational database" — data is stored in
+  # tables with rows and columns, connected by relationships
+  # (like "this workout belongs to this user").
+  # =====================================================
+  db:
+    image: mysql:8.0           # Use the official MySQL 8.0 image from Docker Hub
+    container_name: vitalsync-db
+    restart: unless-stopped     # Auto-restart if it crashes (but not if YOU stop it)
+    environment:
+      # These env vars configure MySQL when it starts for the first time.
+      # They create the database and a user automatically.
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}    # Loaded from your .env file
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3307:3306"             # Map port 3307 on your Mac → port 3306 inside the container
+                                # Using 3307 to avoid conflict with local MySQL on 3306
+    volumes:
+      - vitalsync-db-data:/var/lib/mysql   # Persist data so it survives container restarts
+    healthcheck:
+      # Docker will run this command every 10 seconds to check if MySQL is ready.
+      # Other services can wait for this "healthy" status before starting.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================================================
+  # SERVICE 2: Redis Cache
+  # =====================================================
+  # Redis is an in-memory key-value store. It's FAST
+  # because everything lives in RAM (not on disk).
+  #
+  # We use it for two things:
+  #   1. Storing refresh tokens (for auth)
+  #   2. Caching dashboard data (so we don't hit MySQL
+  #      every time the user loads the dashboard)
+  # =====================================================
+  cache:
+    image: redis:7-alpine       # Alpine = tiny Linux image (~5MB vs ~100MB for full)
+    container_name: vitalsync-cache
+    restart: unless-stopped
+    ports:
+      - "6379:6379"             # Redis default port
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# =====================================================
+# VOLUMES
+# =====================================================
+# Volumes are Docker's way of persisting data.
+# Without this, every time you restart the MySQL
+# container, all your data would be gone!
+# =====================================================
+volumes:
+  vitalsync-db-data:
