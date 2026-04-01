@@ -4,11 +4,14 @@ import { useEffect, useState } from 'react';
 import { Bot, UserCircle, Activity } from 'lucide-react';
 import { BottomNav } from './BottomNav';
 import { useAuth } from '../context/AuthContext';
+import { ChatDrawer } from './ChatDrawer';
 
 export function Layout() {
     const navigate = useNavigate();
     const location = useLocation();
     const { logout } = useAuth();
+    
+    const [isChatOpen, setIsChatOpen] = useState(false);
     
     // Check if there is a background workout draft running
     const [activeWorkout, setActiveWorkout] = useState<any>(null);
@@ -75,19 +78,22 @@ export function Layout() {
                     </button>
                 )}
 
-                {/* AI Chat Bar */}
+                {/* AI Chat Bar (Trigger) */}
                 <button
-                    onClick={() => navigate('/coach')}
-                    className="w-full flex items-center gap-3 bg-bg-input/90 backdrop-blur-md border border-border rounded-full py-3 px-4 shadow-lg hover:border-accent/50 hover:bg-bg-card-hover transition-smooth group"
+                    onClick={() => setIsChatOpen(true)}
+                    className="w-full flex items-center gap-3 bg-bg-input/90 backdrop-blur-md border border-border rounded-full py-3 px-4 shadow-[0_4px_30px_rgba(0,0,0,0.4)] hover:border-accent/50 transition-smooth group"
                 >
-                    <div className="bg-accent/20 p-1.5 rounded-full text-accent group-hover:bg-accent group-hover:text-white transition-smooth">
-                        <Bot className="w-5 h-5" />
+                    <div className="bg-accent/20 p-1.5 rounded-full text-accent">
+                        <Bot className="w-5 h-5 group-hover:scale-110 transition-transform" />
                     </div>
-                    <span className="text-text-muted text-sm font-medium">
+                    <span className="text-text-muted text-[13px] font-medium flex-1 text-left">
                         Ask AI Coach anything...
                     </span>
                 </button>
             </div>
+
+            {/* The Hidden Chat Drawer */}
+            <ChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
             {/* 4. BOTTOM NAVIGATION */}
             <BottomNav />

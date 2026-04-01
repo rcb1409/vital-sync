@@ -9,9 +9,9 @@ import {
 } from 'lucide-react';
 
 const MAIN_TABS = [
-    { name: 'Home', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Workouts', path: '/workouts', icon: Dumbbell },
     { name: 'Diet & Body', path: '/nutrition', icon: Apple },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Runs', path: '/runs', icon: Activity },
     { name: 'Habits', path: '/metrics', icon: CheckSquare },
 ];

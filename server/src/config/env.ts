@@ -22,6 +22,10 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string(),
   JWT_ACCESS_EXPIRY: z.string().default('15m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
+  STRAVA_CLIENT_ID: z.string(),
+  STRAVA_CLIENT_SECRET: z.string(),
+  GEMINI_API_KEY: z.string(),
+
 });
 
 const parsed = envSchema.safeParse(process.env);
