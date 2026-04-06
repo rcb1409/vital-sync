@@ -19,6 +19,7 @@ import { typeDefs } from './graphql/schema';
 import { resolvers } from './graphql/resolvers';
 import { authenticate } from './middleware/authenticate';
 import aiRoutes from './routes/ai.routes';
+import userRoutes from './routes/user.routes';
 
 const app = express();
 
@@ -71,6 +72,7 @@ app.use('/api/metrics', metricsRoutes);
 app.use('/api/strava', stravaRoutes);
 app.use('/api/runs', runRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/users', userRoutes);
 
 
 // --------------- Error Handler ---------------

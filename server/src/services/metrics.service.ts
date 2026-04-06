@@ -111,6 +111,15 @@ async function logHabits(input: LogHabitsInput) {
   });
 }
 
+async function getHabitForDate(userId: string, dateString: string) {
+  const parsedDate = new Date(`${dateString}T00:00:00Z`);
+  return await prisma.dailyHabit.findUnique({
+    where: {
+      userId_date: { userId, date: parsedDate }
+    }
+  });
+}
+
 async function getHabitsHistory(userId: string, rangeDays: number) {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - rangeDays);
@@ -160,6 +169,7 @@ export const metricsService = {
   logWeight,
   getWeightHistory,
   logHabits,
+  getHabitForDate,
   getHabitsHistory,
   getStreaks
 };

@@ -11,6 +11,8 @@ import { NutritionPage } from './pages/NutritionPage';
 import { MetricsPage } from './pages/MetricsPage';
 import { RunsPage } from './pages/RunsPage';
 import { Layout } from './components/Layout';
+import { ProfilePage } from './pages/ProfilePage';
+
 import './index.css';
 
 function AppContent() {
@@ -48,6 +50,7 @@ function AppContent() {
         <Route path="/nutrition" element={<NutritionPage />} />
         <Route path="/metrics" element={<MetricsPage />} />
         <Route path="/runs" element={<RunsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
       {/* Fallback */}

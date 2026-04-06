@@ -10,9 +10,10 @@ export function Layout() {
     const navigate = useNavigate();
     const location = useLocation();
     const { logout } = useAuth();
-    
+
     const [isChatOpen, setIsChatOpen] = useState(false);
-    
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
     // Check if there is a background workout draft running
     const [activeWorkout, setActiveWorkout] = useState<any>(null);
 
@@ -39,14 +40,42 @@ export function Layout() {
                 <h1 className="text-lg font-bold bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent">
                     VitalSync
                 </h1>
-                {/* User Profile / Logout */}
-                <button 
-                  onClick={logout}
-                  title="Sign Out"
-                  className="text-text-secondary hover:text-accent transition-smooth"
-                >
-                    <UserCircle className="w-6 h-6" />
-                </button>
+
+                {/* User Profile Dropdown */}
+                <div className="relative">
+                    <button
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className="text-text-secondary hover:text-accent transition-smooth p-1"
+                    >
+                        <UserCircle className="w-6 h-6" />
+                    </button>
+
+                    {isDropdownOpen && (
+                        <>
+                            {/* Invisible click-away backdrop */}
+                            <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setIsDropdownOpen(false)}
+                            />
+                            {/* Dropdown Menu */}
+                            <div className="absolute right-0 mt-2 w-48 bg-bg-card border border-border shadow-2xl rounded-2xl py-2 z-50 animate-in fade-in zoom-in-95">
+                                <button
+                                    onClick={() => { setIsDropdownOpen(false); navigate('/profile'); }}
+                                    className="w-full text-left px-4 py-3 text-sm font-medium hover:bg-white/5 transition-colors"
+                                >
+                                    Settings
+                                </button>
+
+                                <button
+                                    onClick={() => { setIsDropdownOpen(false); logout(); }}
+                                    className="w-full text-left px-4 py-3 text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors"
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </header>
 
             {/* 2. SCROLLABLE MAIN CONTENT */}
@@ -58,7 +87,7 @@ export function Layout() {
 
             {/* 3. FLOATING ACTION BARS */}
             <div className="fixed bottom-[76px] left-0 right-0 px-4 z-40 max-w-md mx-auto flex flex-col gap-2">
-                
+
                 {/* Active Workout Banner */}
                 {activeWorkout && (
                     <button

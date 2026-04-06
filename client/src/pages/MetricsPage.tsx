@@ -1,6 +1,7 @@
 // client/src/pages/MetricsPage.tsx
 import { useState, useEffect } from 'react';
 import { Scale, Moon, Droplets, Wine, Trophy, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import {
     logWeight, getWeightHistory,
@@ -12,6 +13,7 @@ import {
 const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
 export function MetricsPage() {
+    const { user } = useAuth();
     // --- State ---
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState('');
@@ -96,6 +98,23 @@ export function MetricsPage() {
             });
             await fetchHabitsOnly();
         } catch (err) { alert("Failed to log habits"); }
+        finally { setSubmitting(''); }
+    };
+
+    const handleAddWater = async (amount: number) => {
+        try {
+            setSubmitting('water');
+            const newTotal = (parseInt(habitInput.waterMl) || 0) + amount;
+            setHabitInput(prev => ({ ...prev, waterMl: newTotal.toString() }));
+            await logHabits({
+                sleepHours: parseFloat(habitInput.sleepHours),
+                sleepQuality: parseInt(habitInput.sleepQuality),
+                waterMl: newTotal,
+                alcohol: habitInput.alcohol,
+                date: todayStr
+            });
+            await fetchHabitsOnly();
+        } catch (err) { alert("Failed to add water"); }
         finally { setSubmitting(''); }
     };
 
@@ -198,9 +217,30 @@ export function MetricsPage() {
                     </div>
 
                     {/* Water */}
-                    <div>
-                        <label className="text-xs text-text-muted font-medium ml-1 flex items-center gap-1 mb-1"><Droplets className="w-3 h-3" /> Water (ml)</label>
-                        <input type="number" step="100" required value={habitInput.waterMl} onChange={e => setHabitInput({ ...habitInput, waterMl: e.target.value })} className="w-full bg-bg-input rounded-xl px-4 py-3 outline-none focus:ring-1 focus:ring-blue-400" />
+                    <div className="bg-bg-input p-4 rounded-xl space-y-3 border border-border/50">
+                        <div className="flex justify-between items-end mb-1">
+                            <div>
+                                <span className="text-xs font-medium text-text-muted flex items-center gap-1 uppercase tracking-wider"><Droplets className="w-3.5 h-3.5 text-blue-400" /> Water Intake</span>
+                                <div className="text-2xl font-black mt-1">
+                                    {habitInput.waterMl} <span className="text-sm font-normal text-text-muted">/ {user?.goals?.waterMl || 3000} ml</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-blue-500 transition-all duration-500 ease-out"
+                                style={{ width: `${Math.min(100, (parseInt(habitInput.waterMl) || 0) / (user?.goals?.waterMl || 3000) * 100)}%` }}
+                            />
+                        </div>
+                        
+                        <div className="flex gap-2 pt-2">
+                            <button type="button" disabled={!!submitting} onClick={() => handleAddWater(250)} className="flex-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 py-2.5 rounded-lg text-sm font-bold transition-all flex justify-center items-center">
+                                {submitting === 'water' ? <Loader2 className="w-4 h-4 animate-spin" /> : '+250ml'}
+                            </button>
+                            <button type="button" disabled={!!submitting} onClick={() => handleAddWater(500)} className="flex-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 py-2.5 rounded-lg text-sm font-bold transition-all flex justify-center items-center">
+                                {submitting === 'water' ? <Loader2 className="w-4 h-4 animate-spin" /> : '+500ml'}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Alcohol */}

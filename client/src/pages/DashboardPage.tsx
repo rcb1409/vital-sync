@@ -23,6 +23,7 @@ interface DashboardSummary {
     proteinG: number;
     carbsG: number;
     fatG: number;
+    waterMl: number;
   };
   streaks: {
     hydration: number;
@@ -48,7 +49,7 @@ async function fetchDashboard(): Promise<DashboardSummary> {
         query GetDashboardSummary {
           getDashboardSummary {
             todayWorkouts
-            macros { calories proteinG carbsG fatG }
+            macros { calories proteinG carbsG fatG waterMl }
             streaks { hydration alcoholFree }
             currentWeightEma
           }
@@ -96,10 +97,13 @@ export function DashboardPage() {
     );
   }
 
-  const calorieTarget = user?.goals.calorie_target || 2000;
-  const proteinTarget = user?.goals.protein_target || 150;
+  const calorieTarget = user?.goals?.calories || 2500;
+  const proteinTarget = user?.goals?.proteinG || 150;
+  const waterTarget = user?.goals?.waterMl || 3000;
+  
   const caloriePct = Math.min(100, Math.round((data.macros.calories / calorieTarget) * 100));
   const proteinPct = Math.min(100, Math.round((data.macros.proteinG / proteinTarget) * 100));
+  const waterPct = Math.min(100, Math.round((data.macros.waterMl / waterTarget) * 100));
 
   return (
     <div className="flex flex-col gap-5 pb-24 pt-2">
@@ -193,8 +197,26 @@ export function DashboardPage() {
           </div>
           <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-700"
+              className="h-full bg-gradient-to-r from-purple-500 to-pink-400 rounded-full transition-all duration-700"
               style={{ width: `${proteinPct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Water Bar */}
+        <div className="mt-3">
+          <div className="flex justify-between text-sm mb-1">
+            <span className="flex items-center gap-1">
+              <Droplets className="w-3.5 h-3.5 text-blue-400" /> Water Intake
+            </span>
+            <span className="text-text-muted">
+              {data.macros.waterMl} / {waterTarget} ml
+            </span>
+          </div>
+          <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-700"
+              style={{ width: `${waterPct}%` }}
             />
           </div>
         </div>
@@ -207,27 +229,19 @@ export function DashboardPage() {
       </button>
 
       {/* ---- Row 3: Streaks ---- */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Hydration Streak */}
-        <div className="glass p-5 rounded-2xl border border-border">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="bg-sky-500/10 p-2 rounded-lg">
-              <Droplets className="w-5 h-5 text-sky-400" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold">{data.streaks.hydration}</p>
-          <p className="text-text-muted text-xs mt-1">Day Hydration Streak</p>
-        </div>
-
+      <div className="grid grid-cols-1 gap-4">
         {/* Alcohol-Free Streak */}
         <div className="glass p-5 rounded-2xl border border-border">
           <div className="flex items-center gap-2 mb-3">
             <div className="bg-emerald-500/10 p-2 rounded-lg">
               <Wine className="w-5 h-5 text-emerald-400" />
             </div>
+            <span className="font-semibold">Alcohol-Free</span>
           </div>
-          <p className="text-3xl font-bold">{data.streaks.alcoholFree}</p>
-          <p className="text-text-muted text-xs mt-1">Day Alcohol-Free</p>
+          <div className="flex items-end gap-2">
+            <p className="text-3xl font-bold">{data.streaks.alcoholFree}</p>
+            <p className="text-text-muted text-sm pb-1">Days</p>
+          </div>
         </div>
       </div>
 

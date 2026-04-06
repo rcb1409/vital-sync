@@ -6,11 +6,13 @@ interface User {
   email: string;
   name: string;
   goals: {
-    target_weight: number;
-    calorie_target: number;
-    protein_target: number;
-    training_days_per_week: number;
+    weightKg: number;
+    calories: number;
+    proteinG: number;
+    sleepHours: number;
+    waterMl: number;
   };
+  aiMemory?: { category: string; fact: string }[];
 }
 
 interface AuthState {
@@ -46,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // The api interceptor will automatically attach the token
         // and handle refreshing it if it's expired
-        const { data } = await api.get('/auth/me');
+        const { data } = await api.get('/users/profile');
         setState({
           user: data.user,
           isAuthenticated: true,

@@ -28,6 +28,7 @@ model User {
   passwordHash String   @map("password_hash")
   name         String
   goals        Json?    // { calorie_target, protein_target, target_weight, training_days_per_week }
+  aiMemory     Json?    @default("[]") @map("ai_memory")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

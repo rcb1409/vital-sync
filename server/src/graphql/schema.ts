@@ -4,6 +4,7 @@ export const typeDefs = `#graphql
     proteinG: Float!
     carbsG: Float!
     fatG: Float!
+    waterMl: Int!
   }
 
 
