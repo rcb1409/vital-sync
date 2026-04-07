@@ -9,14 +9,14 @@ const router = Router();
 // calling this route is legally logged in. It gives us `req.user.userId`.
 router.post('/chat', authenticate, async (req, res, next) => {
     try {
-        const { message } = req.body;
+        const { message, history } = req.body;
 
         if (!message) {
             return res.status(400).json({ error: 'Message is required' });
         }
 
         // Send the user's ID and their message deep into the Context Engine
-        const aiResponseText = await aiService.chatWithCoach(req.user.userId, message);
+        const aiResponseText = await aiService.chatWithCoach(req.user.userId, message, history);
 
         // Send the AI's reply back to the React app
         res.json({ reply: aiResponseText });

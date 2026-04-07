@@ -19,7 +19,7 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     role: 'coach',
     text: "Hey! I'm your VitalSync AI Coach. I have live access to your dashboard data. What's on your mind today?"
   }]);
-  
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -41,25 +41,31 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
 
     const userText = input.trim();
     setInput('');
-    
+
     // Add user's message immediately to the UI
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', text: userText }]);
     setIsLoading(true);
 
     try {
-      const res = await api.post('/ai/chat', { message: userText });
-      
+      const validHistory = messages.filter(m => m.id !== 'intro' && !m.text.includes("❌"));
+      const windowedHistory = validHistory.slice(-10).map(m => ({
+        role: m.role == 'coach' ? 'model' : 'user',
+        parts: [{ text: m.text }]
+      }))
+
+      const res = await api.post('/ai/chat', { message: userText, history: windowedHistory });
+
       // Add the AI's reply to the UI
-      setMessages(prev => [...prev, { 
-        id: (Date.now() + 1).toString(), 
-        role: 'coach', 
-        text: res.data.reply 
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'coach',
+        text: res.data.reply
       }]);
     } catch (error) {
-      setMessages(prev => [...prev, { 
-        id: Date.now().toString(), 
-        role: 'coach', 
-        text: "❌ Sorry, I had trouble connecting to the 'brain'. Check your server logs!" 
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'coach',
+        text: "❌ Sorry, I had trouble connecting to the 'brain'. Check your server logs!"
       }]);
     } finally {
       setIsLoading(false);
@@ -71,17 +77,16 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     <>
       {/* Invisible backdrop when open to catch clicks outside to close */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity" 
+        <div
+          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity"
           onClick={onClose}
         />
       )}
 
       {/* The Bottom Sheet Drawer */}
-      <div 
-        className={`fixed bottom-[64px] left-0 right-0 max-w-md mx-auto bg-[#17171C]/95 backdrop-blur-xl border-x border-t border-border rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-50 flex flex-col transition-all duration-400 ease-[cubic-bezier(0.32,0.72,0,1)] ${
-          isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'
-        }`}
+      <div
+        className={`fixed bottom-[64px] left-0 right-0 max-w-md mx-auto bg-[#17171C]/95 backdrop-blur-xl border-x border-t border-border rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-50 flex flex-col transition-all duration-400 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'
+          }`}
         style={{
           maxHeight: 'calc(100vh - 120px)', // doesn't cover top header
           height: messages.length < 3 ? 'auto' : '85vh' // grows to 85% of screen natively
@@ -109,12 +114,12 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
         {/* Chat History Area (allows scrolling) */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-4">
           {messages.map((msg) => (
-            <div 
-              key={msg.id} 
+            <div
+              key={msg.id}
               className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div className={`flex gap-2 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                
+
                 {/* Avatar */}
                 <div className="flex-shrink-0 mt-auto">
                   {msg.role === 'coach' ? (
@@ -129,12 +134,11 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                 </div>
 
                 {/* Message Bubble */}
-                <div 
-                  className={`p-3 rounded-2xl whitespace-pre-wrap ${
-                    msg.role === 'user' 
-                      ? 'bg-accent text-white rounded-br-sm' 
+                <div
+                  className={`p-3 rounded-2xl whitespace-pre-wrap ${msg.role === 'user'
+                      ? 'bg-accent text-white rounded-br-sm'
                       : 'bg-white/5 border border-white/10 text-text-primary rounded-bl-sm'
-                  }`}
+                    }`}
                 >
                   <p className="text-[13px] leading-relaxed">{msg.text}</p>
                 </div>
@@ -145,10 +149,10 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
           {/* Loading Indicator */}
           {isLoading && (
             <div className="flex justify-start">
-               <div className="bg-white/5 border border-white/10 p-3 rounded-2xl rounded-bl-sm flex gap-2 items-center">
-                   <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-                   <span className="text-[13px] text-text-muted">Analyzing dashboard...</span>
-               </div>
+              <div className="bg-white/5 border border-white/10 p-3 rounded-2xl rounded-bl-sm flex gap-2 items-center">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+                <span className="text-[13px] text-text-muted">Analyzing dashboard...</span>
+              </div>
             </div>
           )}
           <div ref={messagesEndRef} className="h-1" />
@@ -166,7 +170,7 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
               placeholder="Ask about your diet or workouts..."
               className="w-full bg-black/40 border border-white/10 rounded-full pl-4 pr-12 py-3.5 text-sm focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
             />
-            <button 
+            <button
               type="submit"
               disabled={!input.trim() || isLoading}
               className="absolute right-1.5 p-2 bg-accent hover:bg-accent/80 text-white rounded-full transition-colors disabled:opacity-50 disabled:hover:bg-accent"

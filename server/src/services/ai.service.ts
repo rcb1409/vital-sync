@@ -105,10 +105,27 @@ const fetchHistoricalWorkoutsDeclaration: FunctionDeclaration = {
   }
 };
 
+const logFoodDeclaration: FunctionDeclaration = {
+  name: "logFood",
+  description: "Logs a food item to the user's daily nutrition tracking. Use this when the user explicitly mentions eating something or asks to log food. Estimate the macros accurately if they don't provide them.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      foodName: { type: SchemaType.STRING, description: "Name of the food (e.g., '1 Large Banana')" },
+      calories: { type: SchemaType.NUMBER, description: "Estimated total calories" },
+      proteinG: { type: SchemaType.NUMBER, description: "Estimated protein in grams" },
+      carbsG: { type: SchemaType.NUMBER, description: "Estimated carbs in grams" },
+      fatG: { type: SchemaType.NUMBER, description: "Estimated fat in grams" },
+      mealType: { type: SchemaType.STRING, description: "Must be exactly: 'breakfast', 'lunch', 'dinner', or 'snack'" },
+    },
+    required: ["foodName", "calories", "proteinG", "carbsG", "fatG", "mealType"]
+  }
+};
+
 /**
  * The main function that talks to Gemini
  */
-async function chatWithCoach(userId: string, userMessage: string) {
+async function chatWithCoach(userId: string, userMessage: string, history: any[] = []) {
 
   // 1. Get the live context
   const contextString = await buildUserContext(userId);
@@ -134,6 +151,12 @@ Review the CURRENT SAVED FACTS in the context string above.
 2. If the user explicitly gives a timeline for a temporary condition (e.g., "I'm sick for the next 3 days", "On a trip until Friday"), calculate the expiration date using the Date provided in the context, and set 'expiresAt' as an ISO timestamp string. For permanent facts, set 'expiresAt' to null.
 3. KEEP passing forward all existing facts exactly as they appear in the KNOWN FACTS context. Do not drop existing facts unless the user specifically states they are no longer true.
 
+CRITICAL DIRECTIVE FOR LOGGING:
+NEVER call a write tool (like logFood) immediately when a user asks to log something.
+When a user asks to log food, you MUST first respond with the estimated macros and explicitly ask them for confirmation.
+Example: "Okay, I estimate a large banana has 105 cals, 1g protein, 27g carbs, 0g fat. Shall I log this for breakfast?"
+ONLY execute the tool AFTER the user replies "yes" or confirms it in the subsequent message.
+
 You MUST completely output your response as a JSON object strictly matching this schema:
 {
   "messageToUser": "Your conversational, energetic, and concise response to the user's message here.",
@@ -152,15 +175,18 @@ Ensure "aiMemory" contains the comprehensive, dynamically updated list of all ac
     systemInstruction: systemInstruction,
     tools: [
       {
-        functionDeclarations: [fetchHistoricalWorkoutsDeclaration]
+        functionDeclarations: [fetchHistoricalWorkoutsDeclaration, logFoodDeclaration]
       }
     ]
     // Note: The Gemini API throws a 400 Error if you use 'application/json' while tools are active!
     // We must rely entirely on our system prompt to enforce the JSON structure.
   });
 
-  // 4. Send the message to Google and wait for the response
-  const result = await model.generateContent(userMessage);
+  // 4.Initialize the global Chat Session with the sliding window history!
+  const chat = model.startChat({
+    history: history
+  })
+  const result = await chat.sendMessage(userMessage);
   const functionCalls = result.response.functionCalls();
 
   // ==========================================
@@ -177,13 +203,6 @@ Ensure "aiMemory" contains the comprehensive, dynamically updated list of all ac
       const requestedWorkouts = allWorkouts.filter(w => {
         const dateString = new Date(w.startedAt).toISOString().split('T')[0];
         return dateString >= startDate && dateString <= endDate;
-      });
-
-      const chat = model.startChat({
-        history: [
-          { role: 'user', parts: [{ text: userMessage }] },
-          { role: 'model', parts: [{ functionCall: call }] }
-        ]
       });
 
       const finalResult = await chat.sendMessage([{
@@ -203,6 +222,41 @@ Ensure "aiMemory" contains the comprehensive, dynamically updated list of all ac
         console.error("Failed to parse tool JSON response:", err);
         return finalResult.response.text();
       }
+    } else if (call.name == "logFood") {
+      const args = call.args as { foodName: string, calories: number, proteinG: number, carbsG: number, fatG: number, mealType: "breakfast"|"lunch"|"dinner"|"snack" };
+      console.log(`Executing Tool on Server -> Logging Food: ${args.foodName} (${args.calories} cal)`);
+
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // Execute the genuine database write!
+      await nutritionService.logFood({
+        userId,
+        foodName: args.foodName,
+        calories: args.calories,
+        proteinG: args.proteinG,
+        carbsG: args.carbsG,
+        fatG: args.fatG,
+        mealType: args.mealType,
+        date: todayStr
+      });
+
+      // Hand the success response back to Gemini so it knows the deed is done
+      const finalResult = await chat.sendMessage([{
+        functionResponse: {
+          name: "logFood",
+          response: { success: true, message: `Successfully logged ${args.foodName} to database.` }
+        }
+      }]);
+
+      try {
+        let rawText = finalResult.response.text();
+        rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsedFinal = JSON.parse(rawText);
+        return parsedFinal.messageToUser;
+      } catch (err) {
+        console.error("Failed to parse tool JSON response:", err);
+        return finalResult.response.text();
+      }
     }
   }
 
@@ -212,20 +266,27 @@ Ensure "aiMemory" contains the comprehensive, dynamically updated list of all ac
   try {
     let rawText = result.response.text();
     rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(rawText);
 
-    // Overwrite Database synchronously with the dynamically updated memory sheet
-    if (parsed.aiMemory && Array.isArray(parsed.aiMemory)) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { aiMemory: parsed.aiMemory }
-      });
-      console.log("Memory Extracted & Saved (TTL Supported):", parsed.aiMemory);
+    try {
+      const parsed = JSON.parse(rawText);
+
+      // Overwrite Database synchronously with the dynamically updated memory sheet
+      if (parsed.aiMemory && Array.isArray(parsed.aiMemory)) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { aiMemory: parsed.aiMemory }
+        });
+        console.log("Memory Extracted & Saved (TTL Supported):", parsed.aiMemory);
+      }
+
+      return parsed.messageToUser || rawText;
+    } catch (parseError) {
+      // If Gemini got distracted by the logFood rule and simply output English text instead of JSON,
+      // we don't want to crash! We just gracefully return the raw English text.
+      return rawText;
     }
-
-    return parsed.messageToUser || "I'm having trouble thinking right now. Could you please repeat that?";
   } catch (error) {
-    console.error("Failed to parse JSON response:", error);
+    console.error("Failed to extract text from response:", error);
     return "Oops! Let's try that again. Something went slightly wrong with my system update.";
   }
 }

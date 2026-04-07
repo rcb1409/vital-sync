@@ -52,8 +52,11 @@ export function NutritionPage() {
     const isToday = formatDate(currentDate) === formatDate(new Date());
 
     // UI Helpers for Progress Bars
-    const getProgress = (actual: number, target: number) => Math.min(100, (actual / target) * 100);
-    const goals = user?.goals || { calorie_target: 2000, protein_target: 150 }; // Fallbacks
+    const getProgress = (actual: number, target: number) => {
+        if (!target) return 0;
+        return Math.min(100, (actual / target) * 100);
+    };
+    const goals = (user?.goals as any) || { calories: 2000, proteinG: 150, carbsG: 250, fatG: 70 }; // Fallbacks
 
     // Form Actions
     const handleLogFood = async (e: React.FormEvent) => {
@@ -147,26 +150,26 @@ export function NutritionPage() {
                                     <span className="text-sm font-medium text-text-muted uppercase tracking-wider">Calories</span>
                                     <div className="text-3xl font-black">
                                         {summary?.totals.calories || 0}
-                                        <span className="text-lg font-normal text-text-muted"> / {goals.calorie_target}</span>
+                                        <span className="text-lg font-normal text-text-muted"> / {goals.calories}</span>
                                     </div>
                                 </div>
                                 <div className="text-sm font-bold text-accent">
-                                    {Math.max(0, goals.calorie_target - (summary?.totals.calories || 0))} remaining
+                                    {Math.max(0, goals.calories - (summary?.totals.calories || 0))} remaining
                                 </div>
                             </div>
                             <div className="h-2.5 w-full bg-bg-input rounded-full overflow-hidden">
                                 <div
                                     className="h-full bg-accent transition-all duration-500 ease-out"
-                                    style={{ width: `${getProgress(summary?.totals.calories || 0, goals.calorie_target)}%` }}
+                                    style={{ width: `${getProgress(summary?.totals.calories || 0, goals.calories)}%` }}
                                 />
                             </div>
                         </div>
 
                         {/* Macro Triplets */}
                         <div className="flex gap-3">
-                            <MacroBar icon={Droplet} label="Protein" actual={summary?.totals.proteinG || 0} target={goals.protein_target} colorClass="text-blue-500" bgClass="bg-blue-500" />
-                            <MacroBar icon={Wheat} label="Carbs" actual={summary?.totals.carbsG || 0} target={250} colorClass="text-green-500" bgClass="bg-green-500" />
-                            <MacroBar icon={Flame} label="Fat" actual={summary?.totals.fatG || 0} target={70} colorClass="text-orange-500" bgClass="bg-orange-500" />
+                            <MacroBar icon={Droplet} label="Protein" actual={summary?.totals.proteinG || 0} target={goals.proteinG} colorClass="text-blue-500" bgClass="bg-blue-500" />
+                            <MacroBar icon={Wheat} label="Carbs" actual={summary?.totals.carbsG || 0} target={goals.carbsG || 250} colorClass="text-green-500" bgClass="bg-green-500" />
+                            <MacroBar icon={Flame} label="Fat" actual={summary?.totals.fatG || 0} target={goals.fatG || 70} colorClass="text-orange-500" bgClass="bg-orange-500" />
                         </div>
                     </div>
 
