@@ -25,6 +25,7 @@ const envSchema = z.object({
   STRAVA_CLIENT_ID: z.string(),
   STRAVA_CLIENT_SECRET: z.string(),
   GEMINI_API_KEY: z.string(),
+  HELICONE_API_KEY: z.string().optional(),
 
 });
 

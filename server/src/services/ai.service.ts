@@ -6,6 +6,7 @@ import { nutritionService } from './nutrition.service';
 import { metricsService } from './metrics.service';
 import { userService } from './user.service';
 import { prisma } from '@/config/database';
+import { validateAiResponse } from '@/validators/ai.validator';
 
 // 1. Initialize the Google SDK with your secure API key
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
@@ -170,17 +171,29 @@ Ensure "aiMemory" contains the comprehensive, dynamically updated list of all ac
   `.trim();
 
   // 3. Initialize the specific Gemini Model (gemini-2.5-flash is the fastest and cheapest)
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: systemInstruction,
-    tools: [
-      {
-        functionDeclarations: [fetchHistoricalWorkoutsDeclaration, logFoodDeclaration]
-      }
-    ]
-    // Note: The Gemini API throws a 400 Error if you use 'application/json' while tools are active!
-    // We must rely entirely on our system prompt to enforce the JSON structure.
-  });
+  const model = genAI.getGenerativeModel(
+    {
+      model: 'gemini-2.5-flash',
+      systemInstruction: systemInstruction,
+      tools: [
+        {
+          functionDeclarations: [fetchHistoricalWorkoutsDeclaration, logFoodDeclaration]
+        }
+      ]
+      // Note: The Gemini API throws a 400 Error if you use 'application/json' while tools are active!
+      // We must rely entirely on our system prompt to enforce the JSON structure.
+    },
+    env.HELICONE_API_KEY
+      ? {
+          baseUrl: "https://gateway.helicone.ai",
+          customHeaders: {
+            "Helicone-Auth": `Bearer ${env.HELICONE_API_KEY}`,
+            "Helicone-Target-Url": "https://generativelanguage.googleapis.com",
+            "Helicone-User-Id": userId,
+          },
+        }
+      : undefined
+  );
 
   // 4.Initialize the global Chat Session with the sliding window history!
   const chat = model.startChat({
@@ -223,7 +236,7 @@ Ensure "aiMemory" contains the comprehensive, dynamically updated list of all ac
         return finalResult.response.text();
       }
     } else if (call.name == "logFood") {
-      const args = call.args as { foodName: string, calories: number, proteinG: number, carbsG: number, fatG: number, mealType: "breakfast"|"lunch"|"dinner"|"snack" };
+      const args = call.args as { foodName: string, calories: number, proteinG: number, carbsG: number, fatG: number, mealType: "breakfast" | "lunch" | "dinner" | "snack" };
       console.log(`Executing Tool on Server -> Logging Food: ${args.foodName} (${args.calories} cal)`);
 
       const todayStr = new Date().toISOString().split('T')[0];
