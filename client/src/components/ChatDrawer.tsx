@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../lib/api';
 import { Send, Bot, User, Loader2, ChevronDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatMessage {
   id: string;
@@ -135,12 +136,18 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
 
                 {/* Message Bubble */}
                 <div
-                  className={`p-3 rounded-2xl whitespace-pre-wrap ${msg.role === 'user'
+                  className={`p-3 rounded-2xl ${msg.role === 'user'
                       ? 'bg-accent text-white rounded-br-sm'
                       : 'bg-white/5 border border-white/10 text-text-primary rounded-bl-sm'
                     }`}
                 >
-                  <p className="text-[13px] leading-relaxed">{msg.text}</p>
+                  {msg.role === 'user' ? (
+                    <p className="text-[13px] leading-relaxed">{msg.text}</p>
+                  ) : (
+                    <div className="text-[13px] leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-1">
+                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

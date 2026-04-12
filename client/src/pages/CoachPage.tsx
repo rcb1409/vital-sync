@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../lib/api';
 import { Send, Bot, User, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatMessage {
   id: string;
@@ -94,14 +95,20 @@ export function CoachPage() {
               </div>
 
               {/* Message Bubble */}
-              <div 
-                className={`p-3 rounded-2xl whitespace-pre-wrap ${
-                  msg.role === 'user' 
-                    ? 'bg-accent text-white rounded-br-sm' 
+              <div
+                className={`p-3 rounded-2xl ${
+                  msg.role === 'user'
+                    ? 'bg-accent text-white rounded-br-sm'
                     : 'glass border border-border text-text-primary rounded-bl-sm'
                 }`}
               >
-                <p className="text-sm leading-relaxed">{msg.text}</p>
+                {msg.role === 'user' ? (
+                  <p className="text-sm leading-relaxed">{msg.text}</p>
+                ) : (
+                  <div className="text-sm leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-1">
+                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+                  </div>
+                )}
               </div>
             </div>
           </div>
