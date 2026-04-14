@@ -47,6 +47,7 @@ function AppContent() {
         <Route path="/workouts" element={<WorkoutsPage />} />
         <Route path="/workouts/history" element={<WorkoutHistoryPage />} />
         <Route path="/workouts/active/new" element={<ActiveWorkoutPage />} />
+        <Route path="/workouts/templates/:templateId" element={<ActiveWorkoutPage />} />
         <Route path="/nutrition" element={<NutritionPage />} />
         <Route path="/metrics" element={<MetricsPage />} />
         <Route path="/runs" element={<RunsPage />} />

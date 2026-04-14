@@ -3,7 +3,7 @@ import { env } from '../config/env';
 import { prisma } from '@/config/database';
 import { buildUserContext, getSystemInstruction, getMemoryExtractionPrompt } from './ai/prompts';
 import { coachTools } from './ai/tools';
-import { executeToolCall } from './ai/executor';
+import { executeToolCall, classifyError } from './ai/executor';
 
 // Initialize the Google SDK with your secure API key
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
@@ -43,7 +43,7 @@ async function extractAndSaveMemory(
     const heliconeOpts = getHeliconeOptions(userId);
     const memoryModel = genAI.getGenerativeModel(
       {
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           responseMimeType: 'application/json',
         }
@@ -102,42 +102,65 @@ async function chatWithCoach(userId: string, userMessage: string, history: any[]
   );
 
   const chat = agentModel.startChat({ history });
-  const result = await chat.sendMessage(userMessage);
-  const functionCalls = result.response.functionCalls();
 
   // ==========================================
-  // PASS 1: TOOL CALL INTERCEPTED
+  // REACT AGENT LOOP
+  // The agent runs multiple turns autonomously:
+  //   1. Send message / tool results to Gemini
+  //   2. If Gemini requests tools → execute them ALL in parallel
+  //   3. Feed every result (success OR failure) back to Gemini
+  //   4. If Gemini replies with text → we're done
+  // Capped at MAX_AGENT_TURNS to prevent infinite loops.
   // ==========================================
-  if (functionCalls && functionCalls.length > 0) {
-    const call = functionCalls[0];
-    let agentReply: string;
+  const MAX_AGENT_TURNS = 5;
+  let currentResult = await chat.sendMessage(userMessage);
+  let agentReply: string = '';
 
-    try {
-      const responsePayload = await executeToolCall(userId, call);
+  for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
+    const functionCalls = currentResult.response.functionCalls();
 
-      // Feed the tool result back to Gemini — it now composes its plain text reply
-      const finalResult = await chat.sendMessage([{
-        functionResponse: {
-          name: call.name,
-          response: responsePayload
-        }
-      }]);
-
-      agentReply = finalResult.response.text();
-    } catch (err) {
-      console.error("Tool execution failed:", err);
-      return "Something went wrong while performing that action. Please try again.";
+    // No tool calls — Gemini has composed its final answer
+    if (!functionCalls || functionCalls.length === 0) {
+      agentReply = currentResult.response.text();
+      break;
     }
 
-    // Fire memory extraction in the background — user already has their reply
-    extractAndSaveMemory(userId, userMessage, agentReply, currentMemory);
-    return agentReply;
+    console.log(`🔁 Agent turn ${turn + 1}: executing ${functionCalls.length} tool(s)...`);
+
+    // Execute ALL requested tools in parallel
+    const toolResponses = await Promise.all(
+      functionCalls.map(async (call) => {
+        try {
+          const response = await executeToolCall(userId, call);
+          console.log(`  ✅ Tool "${call.name}" succeeded`);
+          return {
+            functionResponse: {
+              name: call.name,
+              response: response
+            }
+          };
+        } catch (err) {
+          // Classify: semantic (Gemini can retry) vs system (sanitize, Gemini cannot fix)
+          const classified = classifyError(err);
+          console.warn(`  ⚠️ Tool "${call.name}" failed (canRetry: ${classified.canRetry}):`, classified.error);
+          return {
+            functionResponse: {
+              name: call.name,
+              response: classified
+            }
+          };
+        }
+      })
+    );
+
+    // Send ALL tool results back to Gemini in one message for the next turn
+    currentResult = await chat.sendMessage(toolResponses);
   }
 
-  // ==========================================
-  // PASS 2: STANDARD CHAT (No Tools Requested)
-  // ==========================================
-  const agentReply = result.response.text();
+  if (!agentReply) {
+    console.error('❌ Agent loop hit MAX_AGENT_TURNS without a final answer.');
+    agentReply = "I wasn't able to complete that request. Please try again.";
+  }
 
   // Fire memory extraction in the background — user already has their reply
   extractAndSaveMemory(userId, userMessage, agentReply, currentMemory);

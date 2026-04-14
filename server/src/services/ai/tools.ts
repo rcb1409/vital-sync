@@ -1,4 +1,5 @@
 import { SchemaType, FunctionDeclaration } from '@google/generative-ai';
+import { MuscleGroup } from '@prisma/client';
 
 export const fetchHistoricalWorkoutsDeclaration: FunctionDeclaration = {
   name: "fetchHistoricalWorkouts",
@@ -36,8 +37,54 @@ export const logFoodDeclaration: FunctionDeclaration = {
   }
 };
 
+export const searchExercisesDeclaration: FunctionDeclaration = {
+  name: "searchExercises",
+  description: "Searches the database for exercises targeting a specific muscle group. Use this to find correct exercise IDs before creating templates or routines.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      muscleGroup: {
+        type: SchemaType.STRING,
+        description: "Must be exactly one of: chest, back, shoulders, biceps, triceps, legs, core, cardio"
+      }
+    },
+    required: ["muscleGroup"]
+  }
+};
+
+export const createWorkoutTemplateDeclaration: FunctionDeclaration = {
+  name: "createWorkoutTemplate",
+  description: "Creates and saves a reusable workout template. Use your fitness knowledge to determine the appropriate sets and reps based on the user's goal. In your chat response, briefly explain to the user why you chose these exercises, AND include a Markdown link so they can view the template, exactly like this: [View Template](/workouts/templates/{templateId}) .",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      templateName: { type: SchemaType.STRING, description: "Name of the workout template (e.g., 'Back & Arms Hypertrophy')" },
+      exercises: {
+        type: SchemaType.ARRAY,
+        description: "Array of chosen exercises with their custom sets, reps, and rest periods.",
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+             exerciseId: { type: SchemaType.NUMBER, description: "The database ID of the exercise retrieved from searchExercises" },
+             sets: { type: SchemaType.NUMBER, description: "Number of working sets" },
+             reps: { type: SchemaType.NUMBER, description: "Target reps per set" },
+             restSeconds: { type: SchemaType.NUMBER, description: "Suggested rest time between sets in seconds (e.g., 60-90 for hypertrophy, 120-180 for strength)" }
+          },
+          required: ["exerciseId", "sets", "reps", "restSeconds"]
+        }
+      }
+    },
+    required: ["templateName", "exercises"]
+  }
+};
+
 export const coachTools = [
   {
-    functionDeclarations: [fetchHistoricalWorkoutsDeclaration, logFoodDeclaration]
+    functionDeclarations: [
+      fetchHistoricalWorkoutsDeclaration, 
+      logFoodDeclaration, 
+      searchExercisesDeclaration,
+      createWorkoutTemplateDeclaration
+    ]
   }
 ];

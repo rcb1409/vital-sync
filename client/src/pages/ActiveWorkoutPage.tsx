@@ -1,8 +1,7 @@
-// client/src/pages/ActiveWorkoutPage.tsx
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, Plus, Search, X, Loader2, Play } from 'lucide-react';
-import { logCompletedWorkout } from '../services/workout';
+import { logCompletedWorkout, getWorkoutTemplate } from '../services/workout';
 import { searchExercises, type Exercise } from '../services/exercise';
 
 // --- Types for Local Draft State ---
@@ -28,15 +27,20 @@ interface DraftWorkout {
 
 export function ActiveWorkoutPage() {
     const navigate = useNavigate();
+    const { templateId } = useParams();
 
     // 1. Core Workout State
     const [workout, setWorkout] = useState<DraftWorkout>(() => {
-        const saved = localStorage.getItem('draft_workout');
-        if (saved) return JSON.parse(saved);
+        // Only load draft from local storage if we are starting blank
+        if (!templateId) {
+            const saved = localStorage.getItem('draft_workout');
+            if (saved) return JSON.parse(saved);
+        }
         return { name: 'Workout', startedAt: new Date().toISOString(), exercises: [] };
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoadingTemplate, setIsLoadingTemplate] = useState(!!templateId);
     const [elapsedTime, setElapsedTime] = useState('00:00');
 
     // 2. Modal State for Adding Exercises
@@ -47,8 +51,40 @@ export function ActiveWorkoutPage() {
 
     // --- Persist to Local Storage ---
     useEffect(() => {
-        localStorage.setItem('draft_workout', JSON.stringify(workout));
-    }, [workout]);
+        // Don't save empty workout immediately while loading template
+        if (!isLoadingTemplate) {
+            localStorage.setItem('draft_workout', JSON.stringify(workout));
+        }
+    }, [workout, isLoadingTemplate]);
+
+    // --- Load Template Hook ---
+    useEffect(() => {
+        if (templateId) {
+            getWorkoutTemplate(templateId).then((template) => {
+                const mappedExercises: DraftExercise[] = template.exercises.map((ex: any) => ({
+                    id: crypto.randomUUID(),
+                    exerciseId: ex.exerciseId,
+                    exerciseName: ex.exerciseName,
+                    sets: ex.sets.map((s: any) => ({
+                        id: crypto.randomUUID(),
+                        reps: s.reps.toString(),
+                        weightKg: s.weightKg > 0 ? s.weightKg.toString() : '',
+                        completed: false
+                    }))
+                }));
+
+                setWorkout({
+                    name: template.name,
+                    startedAt: new Date().toISOString(),
+                    exercises: mappedExercises
+                });
+                setIsLoadingTemplate(false);
+            }).catch(err => {
+                console.error("Failed to load template:", err);
+                setIsLoadingTemplate(false);
+            });
+        }
+    }, [templateId]);
 
     // --- Timer Logic ---
     useEffect(() => {

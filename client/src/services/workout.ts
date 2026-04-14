@@ -27,3 +27,8 @@ export async function getWorkoutsHistory() {
     const response = await api.get('/workouts');
     return response.data.workouts;
 }
+
+export async function getWorkoutTemplate(id: string) {
+    const response = await api.get(`/workouts/templates/${id}`);
+    return response.data.template;
+}

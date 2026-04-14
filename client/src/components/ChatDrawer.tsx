@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../lib/api';
 import { Send, Bot, User, Loader2, ChevronDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { Link } from 'react-router-dom';
 
 interface ChatMessage {
   id: string;
@@ -140,7 +142,33 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                       : 'bg-white/5 border border-white/10 text-text-primary rounded-bl-sm'
                     }`}
                 >
-                  <p className="text-[13px] leading-relaxed">{msg.text}</p>
+                  <div className="text-[13px] leading-relaxed">
+                    <ReactMarkdown
+                      components={{
+                        a: ({ node, href, children, ...props }) => {
+                          if (href?.startsWith('/')) {
+                            return (
+                              <Link 
+                                to={href} 
+                                onClick={onClose}
+                                className="text-accent underline font-semibold hover:text-white inline-flex items-center gap-1 mt-2" 
+                              >
+                                {children}
+                              </Link>
+                            );
+                          }
+                          return <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline font-semibold hover:text-white" {...props}>{children}</a>;
+                        },
+                        p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                        ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
+                        ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2 space-y-1" {...props} />,
+                        li: ({ node, ...props }) => <li className="marker:text-accent/50" {...props} />,
+                        strong: ({ node, ...props }) => <strong className="font-bold text-white" {...props} />
+                      }}
+                    >
+                      {msg.text}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
             </div>

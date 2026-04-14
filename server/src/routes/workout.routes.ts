@@ -37,5 +37,17 @@ router.get(
         res.status(200).json({ workouts });
     })
 );
+// ==========================================
+// GET /api/workouts/templates/:id
+// Retrieves a template and auto-populates historical weights
+// ==========================================
+router.get(
+    '/templates/:id',
+    authenticate,
+    asyncHandler(async (req, res) => {
+        const template = await workoutService.getTemplateWithHistoricalWeights(req.user!.userId, req.params.id as string);
+        res.status(200).json({ template });
+    })
+);
 
 export default router;
