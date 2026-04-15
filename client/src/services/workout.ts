@@ -28,6 +28,11 @@ export async function getWorkoutsHistory() {
     return response.data.workouts;
 }
 
+export async function getWorkoutTemplates() {
+    const response = await api.get('/workouts/templates');
+    return response.data.templates;
+}
+
 export async function getWorkoutTemplate(id: string) {
     const response = await api.get(`/workouts/templates/${id}`);
     return response.data.template;

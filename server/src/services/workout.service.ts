@@ -122,8 +122,16 @@ async function getTemplateWithHistoricalWeights(userId: string, templateId: stri
     };
 }
 
+async function getUserTemplates(userId: string) {
+    return await prisma.workoutTemplate.findMany({
+        where: { userId },
+        orderBy: { id: 'desc' },
+    });
+}
+
 export const workoutService = {
     logCompletedWorkout,
     getUserWorkouts,
     getTemplateWithHistoricalWeights,
+    getUserTemplates,
 };

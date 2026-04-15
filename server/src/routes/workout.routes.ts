@@ -38,6 +38,19 @@ router.get(
     })
 );
 // ==========================================
+// GET /api/workouts/templates
+// Retrieves all templates for the user
+// ==========================================
+router.get(
+    '/templates',
+    authenticate,
+    asyncHandler(async (req, res) => {
+        const templates = await workoutService.getUserTemplates(req.user!.userId);
+        res.status(200).json({ templates });
+    })
+);
+
+// ==========================================
 // GET /api/workouts/templates/:id
 // Retrieves a template and auto-populates historical weights
 // ==========================================
