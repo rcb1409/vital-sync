@@ -40,3 +40,15 @@ npm-debug.log*
 # Docker volumes (data persisted by Docker)
 # -------------------------------------------------------
 docker-data/
+
+# -------------------------------------------------------
+# Terraform
+# -------------------------------------------------------
+# Provider binaries downloaded by `terraform init` (HUGE files, never commit)
+**/.terraform/*
+# State files (contain infrastructure details and sometimes secrets)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+# Plan output files
+*.tfplan
