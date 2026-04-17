@@ -1,0 +1,54 @@
+name: Deploy Frontend to Amazon S3/CloudFront
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'client/**' # ONLY run when frontend code changes!
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    # OIDC: Grant this job permission to request a short-lived AWS identity token
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: ./client
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'npm'
+        cache-dependency-path: './client/package-lock.json'
+
+    # Step 1: Tell GitHub who we are (OIDC — No stored keys!)
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    # Step 2: Build the React app (creates the /dist folder)
+    - name: Install dependencies and Build
+      run: |
+        npm ci
+        npm run build
+
+    # Step 3: Copy the /dist folder up into our S3 Bucket
+    - name: Sync files to S3
+      env:
+        S3_BUCKET: ${{ secrets.AWS_S3_BUCKET_NAME }}
+      # The --delete flag removes any old files from S3 that no longer exist in our code!
+      run: aws s3 sync dist/ s3://$S3_BUCKET --delete
+
+    # Step 4: Tell CloudFront to flush its cache so the new code is live instantly
+    - name: Invalidate CloudFront Cache
+      env:
+        CLOUDFRONT_ID: ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }}
+      run: aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_ID --paths "/*"

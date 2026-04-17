@@ -1,0 +1,247 @@
+# VitalSync — Project Status & Roadmap
+
+> **A full-stack personal health intelligence platform** with React, Express, Prisma, MySQL, Redis, and an AI coach powered by an agentic tool-calling architecture — containerized with Docker, deployed to AWS with Terraform.
+
+---
+
+## What We Built (Phase 1 — Completed)
+
+### 🔧 Backend
+
+The Express + TypeScript backend is fully operational with a hybrid API strategy (REST + GraphQL), Prisma ORM, Zod validation, and a service-layer architecture.
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Auth System | ✅ Done | JWT access (15m) + refresh token rotation (7d, Redis-backed). Auto-refresh interceptor on client. |
+| Workout Module | ✅ Done | Full CRUD with atomic transactions (workout + sets), auto PR detection, volume tracking, exercise library (200+ seeded) |
+| Nutrition Module | ✅ Done | Food logging, meal tagging, daily macro aggregation via SQL, saved meals, daily target vs. actuals |
+| Body Metrics | ✅ Done | Weight logging, 7-day EMA, trend direction, unique constraint per user per day |
+| Daily Habits | ✅ Done | Sleep, water, alcohol tracking. Streak calculation. Flexible JSON schema for extensibility |
+| Strava Integration | ✅ Done | OAuth2 flow, webhook receiver, manual sync, idempotent imports via `strava_activity_id` |
+| Dashboard (GraphQL) | ✅ Done | Single [getDashboardSummary](file:///Users/ravichandu/Documents/Job%20Hunt%20-%2026/Projects/vital-sync/server/src/graphql/resolvers.ts#8-41) query, parallel `Promise.all` DB fetches, macros/streaks/weight EMA |
+| Validation | ✅ Done | Zod schemas for every REST endpoint |
+| Database | ✅ Done | 12-table Prisma schema, normalized, composite indexes, strategic JSON columns |
+
+#### Key Backend Decisions
+
+1. **Hybrid GraphQL + REST** — GraphQL for the dashboard (flexible queries, no over-fetching) and potentially AI chat streaming. REST for auth (cookies/redirects), Strava OAuth/webhooks, and simple CRUD where a fixed HTTP contract is simpler.
+
+2. **Prisma as ORM** — Chose Prisma for type-safe queries and schema-driven migrations, serving as a guardrail for agentic IDE collaboration — the agent can't introduce SQL injection or schema drift.
+
+3. **Zod for input validation** — Runtime validation on every REST endpoint. Paired with Prisma, this creates a "type-safe sandwich" that catches errors at both the API boundary (Zod) and the database boundary (Prisma).
+
+4. **Service-layer architecture** — Routes are thin controllers that delegate to services. Services contain business logic and call Prisma. This separation keeps the codebase testable and maintainable.
+
+5. **Redis for dual duty** — Refresh token storage (auth) + dashboard caching (performance). Chose Redis over in-memory storage for persistence across restarts and horizontal scalability.
+
+6. **Streak calculation in SQL** — Not a loop in JavaScript. Database does the math for hydration and alcohol-free streaks.
+
+7. **EMA over simple averaging** — Exponential moving average for weight trends, giving more weight to recent data points to smooth out daily fluctuations.
+
+---
+
+### 🤖 AI Department
+
+The AI architecture **evolved significantly** from the original blueprint. The original plan called for a static **Context Engineering Pipeline** (deterministic intent classification → selective domain retrieval → prompt assembly). During implementation, we pivoted to an **agentic tool-calling architecture** that is more powerful and extensible.
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| ReAct Agent Loop | ✅ Done | Multi-turn autonomous loop (max 5 turns) using Gemini 2.5 Flash |
+| Tool: `fetchHistoricalWorkouts` | ✅ Done | Date-range filtered workout retrieval with Zod-style validation |
+| Tool: `logFood` | ✅ Done | AI estimates macros, confirms with user before writing to DB |
+| Tool: `searchExercises` | ✅ Done | Muscle group search to get exercise IDs from the database |
+| Tool: `createWorkoutTemplate` | ✅ Done | Creates structured templates with exercise IDs, sets, reps, rest periods |
+| Memory System | ✅ Done | Dual LLM call — main agent replies, background extractor saves long-term facts |
+| Memory TTL | ✅ Done | Temporary conditions (injuries, trips) auto-expire via calculated ISO dates |
+| Error Classification | ✅ Done | Semantic errors (bad args → Gemini can retry) vs. system errors (sanitized, no retry) |
+| Helicone Observability | ✅ Done | Both agent and memory-extractor LLM calls routed through Helicone for monitoring |
+| Confirmation Guardrail | ✅ Done | Agent always confirms before executing write operations (e.g., food logging) |
+| Context Injection | ✅ Done | Live dashboard data (macros, streaks, workouts) injected into system prompt |
+
+#### Key AI Decisions
+
+1. **Pivot from Context Engineering to Agentic Architecture** — The original blueprint designed a deterministic pipeline (intent classifier → context retriever → prompt assembler). During implementation, we chose an agentic tool-calling approach because: (a) it's more extensible — adding new capabilities is just adding a new tool declaration, (b) it handles multi-step reasoning naturally (e.g., search exercises → create template), and (c) Gemini 2.5 Flash's native function calling is mature enough to be reliable.
+
+2. **Custom tool-calling over MCP** — We evaluated the Model Context Protocol (MCP) for database access but chose custom tools. MCP would bypass application-level side effects (PR detection, cache invalidation, validation). Our tools call the existing service layer, preserving all business logic.
+
+3. **Dual LLM call pattern for memory** — Main agent call has tools registered (incompatible with `responseMimeType: 'application/json'` in Gemini). Memory extraction uses a second, tool-free LLM call with guaranteed JSON output. Memory extraction is fire-and-forget — user already has their response.
+
+4. **Error classification (semantic vs system)** — Semantic errors (bad argument format, invalid enum) are passed back to Gemini with `canRetry: true` so it can self-correct. System errors (DB failures, network issues) are sanitized to prevent leaking infrastructure details.
+
+5. **Confirmation before writes** — The system instruction explicitly requires the agent to propose estimated macros and ask for user confirmation before executing `logFood`. This prevents silent data corruption.
+
+6. **Helicone for LLM observability** — All Gemini calls route through Helicone's gateway, giving us per-user tracking, session-level analytics, and cost monitoring without code changes.
+
+---
+
+### ☁️ Cloud Department
+
+The AWS deployment follows an **ECS Fargate architecture** — containerized, serverless compute with managed database and cache services.
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Architecture Decision | ✅ Done | Chose **Option A: ECS Fargate** over EC2 for portfolio value + operational simplicity |
+| VPC Module | ✅ Done | Full VPC: 2 public subnets, 2 private subnets, IGW, NAT Gateway, route tables (us-east-1a/1b) |
+| RDS Module | ✅ Done | MySQL 8 on `db.t4g.micro`, private subnet, free tier eligible |
+| ALB Module | ✅ Done | Security group (HTTP/80), target group (port 4000), health check on `/api/health`, HTTP listener |
+| ElastiCache Module | 🏗️ Partial | Module directory exists with variables |
+| ECS Module | 🏗️ Partial | ALB config done, Fargate task definition and service still needed |
+| S3/CloudFront Module | 📋 Planned | React SPA hosting + CDN routing |
+| SSM Parameter Store | 📋 Planned | Secrets management (DB URL, API keys, JWT secrets) |
+| ACM (SSL) | 📋 Planned | Free HTTPS for `vitalsync.ravibollepalli.me` |
+| Route 53 (DNS) | 📋 Planned | Custom domain pointing to CloudFront |
+| Production Environment | 🏗️ Partial | `terraform/environments/production/` directory exists |
+| Docker (Local) | ✅ Done | 2-service dev Compose (MySQL 8.0 + Redis 7 Alpine) with health checks and persistent volumes |
+
+#### Key Cloud Decisions
+
+1. **ECS Fargate over EC2** — We chose Fargate ($35-55/mo) over a single EC2 ($15-25/mo) because: (a) it's a portfolio project — demonstrating managed services + IaC is significantly more impressive, (b) you already have Docker, so it's a natural evolution, and (c) zero server patching responsibility.
+
+2. **Database in private subnet** — RDS and ElastiCache are never directly accessible from the internet. Only ECS Fargate tasks within the VPC can reach them. This is the foundational security layer.
+
+3. **ALB with health checks** — The load balancer continuously pings `/api/health` to verify the Express server is connected to both RDS and Redis. Unhealthy tasks are automatically replaced.
+
+4. **NAT Gateway for outbound** — Private subnet resources (ECS tasks) can make outbound calls (Gemini API, Strava API, Tavily) through the NAT Gateway without being directly exposed to inbound internet traffic.
+
+5. **SSM over hardcoded env vars** — Secrets will be pulled from Parameter Store at container startup via ECS task role, never baked into Docker images or visible in the AWS console.
+
+---
+
+### 🔁 DevOps Department
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Docker Compose (Dev) | ✅ Done | MySQL + Redis with health checks, env-based config, persistent volumes |
+| Terraform IaC | 🏗️ In Progress | Modular structure: `modules/` (vpc, rds, ecs, elasticache, s3) + `environments/` (production, staging) |
+| Production Docker Compose | 📋 Planned | 5-service setup (frontend, backend, db, cache, nginx) with multi-stage builds |
+| CI Pipeline (GitHub Actions) | 📋 Planned | PR-gated: lint → typecheck → unit tests → integration tests → build check |
+| GitOps (Infrastructure CD) | 📋 Planned | Auto `terraform plan` + `terraform apply` on pushes to `main` touching `terraform/` |
+| Backend CD | 📋 Planned | Build Docker → push ECR → `prisma migrate deploy` → update ECS service (zero downtime) |
+| Frontend CD | 📋 Planned | `vite build` → sync `dist/` to S3 → invalidate CloudFront cache |
+| Multi-stage Dockerfiles | 📋 Planned | Production images (200MB vs 1.2GB dev) |
+| Nginx Reverse Proxy | 📋 Planned | Routing, gzip/brotli, rate limiting (100 req/min/IP), security headers, static caching |
+
+#### Key DevOps Decisions
+
+1. **Terraform modular structure** — Chose `modules/` + `environments/` pattern for reusability. Each AWS resource group (VPC, RDS, ECS, etc.) is an independent, parameterized module. Staging and production call the same modules with different variables.
+
+2. **Three separate CI/CD workflows** — Not a single monolithic pipeline. Infrastructure changes (Terraform), backend deploys (Docker/ECS), and frontend deploys (S3/CloudFront) trigger independently for faster iteration and clearer blast radius.
+
+3. **Docker from Day 1** — Local development uses Docker Compose for database and cache from the start, ensuring dev/prod environment parity. No "works on my machine" issues.
+
+---
+
+## What We're Building Next (Phase 2+)
+
+### 🔧 Backend — Next Phase
+
+| Priority | Item | Details |
+|----------|------|---------|
+| P0 | Testing suite | Unit tests (Vitest) for PR detection, EMA algorithm, streak calc, intent classifier. Integration tests (Supertest + real MySQL) for API routes. E2E (Playwright) for critical user flows. |
+| P0 | Redis dashboard caching | Cache `getDashboardSummary` response with TTL, invalidate on new data entry. Target: 800ms → 45ms. |
+| P1 | EXPLAIN ANALYZE optimization | Composite indexes on hot query paths. Target: dashboard query 340ms → 12ms. |
+| P1 | GraphQL AI Chat subscription | Stream AI responses via GraphQL subscription for real-time status indicators |
+| P2 | Bundle splitting | React.lazy() code splitting. Target: 420KB → 180KB initial bundle. |
+| P2 | API compression | Gzip on all text responses via Nginx. Target: 80% reduction. |
+
+### 🤖 AI — Next Phase
+
+| Priority | Item | Details |
+|----------|------|---------|
+| P0 | Streaming responses | SSE or GraphQL streaming for real-time token delivery to the frontend |
+| P1 | Web Search enrichment | Tavily Search API for questions needing external knowledge ("is 5:10/km good for a beginner?") |
+| P1 | Context plan viewer | Collapsible panel per message showing which tools were called, token usage, response time |
+| P1 | New tools | `logWeight`, `logHabits`, `getRunSummary`, `getProgressReport` |
+| P2 | Pipeline trace storage | Save tool-call sequence, token counts, execution time per conversation to `ai_conversations` table |
+| P1 | LLM-as-Judge evaluation | Automated quality scoring of agent responses — a second LLM call grades relevance, accuracy, and safety of the coach's output. Enables regression testing and prompt tuning without manual review. |
+| P2 | Guardrails | Max context size cap (2000 tokens), 15s timeout on Gemini, graceful fallback on tool failures |
+
+### ☁️ Cloud — Next Phase
+
+| Priority | Item | Details |
+|----------|------|---------|
+| P0 | Complete ECS module | Fargate task definition, ECS service, IAM task role with SSM read permissions |
+| P0 | Complete ElastiCache module | Redis `cache.t4g.micro` in private subnet |
+| P0 | S3 + CloudFront module | Private S3 bucket, CloudFront distribution routing `/api` → ALB and `/*` → S3 |
+| P0 | ACM + Route 53 | SSL certificate for `vitalsync.ravibollepalli.me`, DNS CNAME records |
+| P1 | SSM Parameter Store | All secrets (DATABASE_URL, REDIS_URL, GEMINI_API_KEY, JWT secrets) |
+| P1 | ECR repository | Private container registry for Docker images |
+| P1 | Production `main.tf` | Wire all modules together in `environments/production/main.tf` |
+| P2 | CloudWatch alarms | CPU > 80%, API error rate > 5%, response time p95 > 2s |
+
+### 🔁 DevOps — Next Phase
+
+| Priority | Item | Details |
+|----------|------|---------|
+| P0 | CI Pipeline | GitHub Actions: lint → typecheck → tests on every PR |
+| P0 | Backend CD | Build → ECR push → `prisma migrate deploy` → ECS rolling update |
+| P0 | Frontend CD | `vite build` → S3 sync → CloudFront invalidation |
+| P1 | Multi-stage Dockerfiles | Server: `npm install` → `tsc` → production runtime (no dev deps). Client: `npm install` → `vite build` → nginx. |
+| P1 | GitOps | Auto `terraform plan/apply` on `main` pushes touching `terraform/` |
+| P2 | Nginx production config | Rate limiting, gzip, security headers (CSP, HSTS, X-Frame-Options), static caching |
+
+---
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────┐
+│              CLIENT (React + Vite)           │
+│  11 Pages: Dashboard, Coach, Workouts,      │
+│  Nutrition, Metrics, Runs, Profile, Auth     │
+│  TailwindCSS + shadcn/ui + Recharts         │
+└──────────────────┬──────────────────────────┘
+                   │ REST + GraphQL
+┌──────────────────▼──────────────────────────┐
+│          EXPRESS BACKEND (Port 4000)         │
+│                                             │
+│  REST Routes:     │  GraphQL:               │
+│  • auth           │  • getDashboardSummary  │
+│  • workouts       │                         │
+│  • nutrition      │  AI Agent (Gemini 2.5): │
+│  • metrics        │  • ReAct loop (5 turns) │
+│  • exercises      │  • 4 tools              │
+│  • runs/strava    │  • Memory extractor     │
+│  • user           │  • Helicone observability│
+│                                             │
+│  Middleware: JWT auth, Zod, Rate limit      │
+└────────┬─────────────────┬──────────────────┘
+         │                 │
+    ┌────▼────┐      ┌─────▼─────┐
+    │  MySQL  │      │   Redis   │
+    │  (RDS)  │      │(ElastiCache)│
+    │ 12 tables│     │ Auth + Cache│
+    └─────────┘      └───────────┘
+```
+
+```
+AWS Target Architecture (ECS Fargate):
+
+   Route 53 → CloudFront → S3 (React SPA)
+                         → ALB → ECS Fargate (Express)
+                                      ├── RDS MySQL (private subnet)
+                                      └── ElastiCache Redis (private subnet)
+   Terraform IaC: VPC + 5 modules
+   CI/CD: 3 GitHub Actions workflows
+```
+
+---
+
+## Tech Stack Summary
+
+| Layer | Technology | Key Decision |
+|-------|-----------|-------------|
+| Frontend | React 19 + Vite + TypeScript + TailwindCSS v4 | shadcn/ui for component library |
+| API | Hybrid GraphQL (Apollo) + REST | GraphQL for dashboard, REST for auth/CRUD |
+| Backend | Express + TypeScript | Service-layer architecture |
+| ORM | Prisma | Type-safe queries, schema-driven migrations |
+| Validation | Zod | Runtime validation on all endpoints |
+| Database | MySQL 8 | 12-table normalized schema + strategic JSON |
+| Cache | Redis 7 | Refresh tokens + dashboard caching |
+| AI Model | Google Gemini 2.5 Flash | Agentic tool-calling with ReAct loop |
+| AI Memory | Custom dual-LLM extraction | TTL-based fact management |
+| Observability | Helicone | LLM call monitoring and cost tracking |
+| Containers | Docker Compose | Dev: MySQL + Redis. Prod: 5-service setup |
+| IaC | Terraform (modular) | VPC, RDS, ECS, ElastiCache, S3 modules |
+| CI/CD | GitHub Actions (planned) | 3 independent workflows |
+| Cloud | AWS (ECS Fargate) | Managed compute, DB, cache, CDN |

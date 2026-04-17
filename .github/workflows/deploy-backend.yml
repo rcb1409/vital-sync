@@ -1,0 +1,52 @@
+name: Deploy Backend to Amazon ECS
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'server/**' # ONLY run when backend code changes!
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    # OIDC: Grant this job permission to request a short-lived AWS identity token
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure AWS credentials (OIDC — No stored keys!)
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: vitalsync-backend
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        cd server
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Deploy to Amazon ECS
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+      with:
+        # We find our existing Task, inject the new freshly built Docker Image URL into it, and restart the server
+        task-definition: production-vitalsync-api
+        service: production-vitalsync-api
+        cluster: production-vitalsync-cluster
+        container-name: vitalsync-api
+        image: ${{ steps.build-image.outputs.image }}
+        wait-for-service-stability: true

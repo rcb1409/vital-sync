@@ -1,0 +1,38 @@
+name: Deploy Infrastructure (Terraform)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'terraform/**' # ONLY run this if Terraform files get modified!
+
+jobs:
+  terraform-deploy:
+    runs-on: ubuntu-latest
+    # OIDC: Grant this job permission to request a short-lived AWS identity token
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: ./terraform/environments/production
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+          
+      - name: Configure AWS Credentials (OIDC — No stored keys!)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # 🚨 Paste the role ARN from the `terraform apply` output here after first bootstrap
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          
+      - name: Terraform Init
+        run: terraform init
+        
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
