@@ -48,6 +48,20 @@ resource "aws_iam_role_policy_attachment" "execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# Grant the execution role permission to read our app secrets from Secrets Manager
+resource "aws_iam_role_policy" "secrets_access" {
+  name = "${var.environment}-vitalsync-secrets-policy"
+  role = aws_iam_role.execution_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = var.secrets_arn
+    }]
+  })
+}
+
 
 # 5. The Task Definition (The blueprint for our container)
 resource "aws_ecs_task_definition" "api" {
@@ -67,6 +81,16 @@ resource "aws_ecs_task_definition" "api" {
           containerPort = 4000
           hostPort      = 4000
         }
+      ]
+      # ECS fetches each key from Secrets Manager and injects it as an env var
+      # before the container process starts — app sees normal process.env.DATABASE_URL etc.
+      secrets = [
+        { name = "DATABASE_URL",         valueFrom = "${var.secrets_arn}:DATABASE_URL::" },
+        { name = "JWT_ACCESS_SECRET",    valueFrom = "${var.secrets_arn}:JWT_ACCESS_SECRET::" },
+        { name = "JWT_REFRESH_SECRET",   valueFrom = "${var.secrets_arn}:JWT_REFRESH_SECRET::" },
+        { name = "STRAVA_CLIENT_ID",     valueFrom = "${var.secrets_arn}:STRAVA_CLIENT_ID::" },
+        { name = "STRAVA_CLIENT_SECRET", valueFrom = "${var.secrets_arn}:STRAVA_CLIENT_SECRET::" },
+        { name = "GEMINI_API_KEY",       valueFrom = "${var.secrets_arn}:GEMINI_API_KEY::" }
       ]
       logConfiguration = {
         logDriver = "awslogs"

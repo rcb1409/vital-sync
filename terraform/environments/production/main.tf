@@ -36,6 +36,11 @@ module "elasticache" {
   private_subnet_ids = module.vpc.private_subnet_ids
 }
 
+# Fetch the ARN of our Secrets Manager secret (created once manually in the AWS Console)
+data "aws_secretsmanager_secret" "api" {
+  name = "production/vitalsync/api"
+}
+
 # 5. Deploying the Express Server & Load Balancer
 module "ecs" {
   source             = "../../modules/ecs"
@@ -43,6 +48,7 @@ module "ecs" {
   vpc_id             = module.vpc.vpc_id
   public_subnet_ids  = module.vpc.public_subnet_ids
   private_subnet_ids = module.vpc.private_subnet_ids
+  secrets_arn        = data.aws_secretsmanager_secret.api.arn
 }
 
 # 6. Generate free SSL Certificate (ACM)
