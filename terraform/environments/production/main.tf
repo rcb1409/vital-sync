@@ -1,5 +1,3 @@
-# DB credentials — values come from TF_VAR_db_username / TF_VAR_db_password
-# set as GitHub Secrets in the infrastructure.yml workflow. Never hardcoded here.
 variable "db_username" {
   type      = string
   sensitive = true
