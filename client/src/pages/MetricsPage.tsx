@@ -22,7 +22,7 @@ export function MetricsPage() {
     // Data
     const [weightRange, setWeightRange] = useState<'7d' | '30d' | '90d'>('30d');
     const [weightHistory, setWeightHistory] = useState<WeightLog[]>([]);
-    const [habitsHistory, setHabitsHistory] = useState<DailyHabitsLog[]>([]);
+    const [_habitsHistory, setHabitsHistory] = useState<DailyHabitsLog[]>([]);
     const [streaks, setStreaks] = useState<StreaksSummary>({ alcoholFree: 0, hydration: 0 });
 
     // Forms
@@ -121,8 +121,6 @@ export function MetricsPage() {
     if (loading) {
         return <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
     }
-
-    const currentEma = weightHistory.length > 0 ? weightHistory[weightHistory.length - 1].emaWeight : '--';
 
     return (
         <div className="flex flex-col h-full space-y-6 pb-20">
