@@ -6,7 +6,7 @@ import { userService } from '../services/user.service';
 const router = Router();
 router.get('/profile', authenticate, async (req, res, next) => {
     try {
-        const userProfile = await userService.getProfile(req.user.userId);
+        const userProfile = await userService.getProfile(req.user!.userId);
         res.json({ user: userProfile });
     } catch (error) {
         next(error);
@@ -19,7 +19,7 @@ router.patch('/profile', authenticate, async (req, res, next) => {
         // 1. Validate incoming data (Zod)
         const validatedData = updateProfileSchema.parse(req.body);
         // 2. Pass clean data to the Service layer
-        const updatedUser = await userService.updateProfile(req.user.userId, validatedData);
+        const updatedUser = await userService.updateProfile(req.user!.userId, validatedData);
         // 3. Respond
         res.json({ user: updatedUser });
     } catch (error: any) {

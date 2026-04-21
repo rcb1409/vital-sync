@@ -16,7 +16,7 @@ router.post('/chat', authenticate, async (req, res, next) => {
         }
 
         // Send the user's ID and their message deep into the Context Engine
-        const aiResponseText = await aiService.chatWithCoach(req.user.userId, message, history);
+        const aiResponseText = await aiService.chatWithCoach(req.user!.userId, message, history);
 
         // Send the AI's reply back to the React app
         res.json({ reply: aiResponseText });

@@ -90,12 +90,13 @@ async function startServer() {
 
   await server.start();
 
+  // Apply auth middleware separately to avoid Apollo/Express dual-types conflict
+  app.use('/graphql', authenticate as any);
   app.use(
     '/graphql',
-    authenticate,
     expressMiddleware(server as any, {
       context: async ({ req }: any) => ({ user: req.user }),
-    })
+    }) as any
   );
 
   app.listen(PORT, () => {
