@@ -45,8 +45,8 @@ resource "aws_db_instance" "main" {
   allocated_storage    = 20
   
   db_name              = "vitalsync"    # Initial database name
-  username             = "admin"        # Master username
-  password             = "vitalsync_admin_pass_123" # Don't worry, we'll secure this later!
+  username             = var.db_username
+  password             = var.db_password
   
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]

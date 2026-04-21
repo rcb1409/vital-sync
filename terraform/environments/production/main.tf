@@ -1,3 +1,15 @@
+# DB credentials — values come from TF_VAR_db_username / TF_VAR_db_password
+# set as GitHub Secrets in the infrastructure.yml workflow. Never hardcoded here.
+variable "db_username" {
+  type      = string
+  sensitive = true
+}
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+}
+
 # 1. AWS Provider Setup
 terraform {
   required_providers {
@@ -26,6 +38,8 @@ module "rds" {
   environment        = "production"
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnet_ids
+  db_username        = var.db_username
+  db_password        = var.db_password
 }
 
 # 4. Deploying the Cache
