@@ -22,7 +22,7 @@
     "@google/genai": "^1.48.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.5.0",
-    "axios": "^1.14.1",
+    "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
