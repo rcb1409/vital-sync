@@ -25,6 +25,8 @@ jobs:
       # Install packages, validate the DB schema, and build!
       - run: npm ci
       - run: npx prisma validate
+        env:
+          DATABASE_URL: "mysql://user:password@localhost:3306/vitalsync"
       - run: npm run build
 
   test-frontend:
