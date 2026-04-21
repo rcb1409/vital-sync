@@ -90,7 +90,8 @@ resource "aws_ecs_task_definition" "api" {
         { name = "JWT_REFRESH_SECRET",   valueFrom = "${var.secrets_arn}:JWT_REFRESH_SECRET::" },
         { name = "STRAVA_CLIENT_ID",     valueFrom = "${var.secrets_arn}:STRAVA_CLIENT_ID::" },
         { name = "STRAVA_CLIENT_SECRET", valueFrom = "${var.secrets_arn}:STRAVA_CLIENT_SECRET::" },
-        { name = "GEMINI_API_KEY",       valueFrom = "${var.secrets_arn}:GEMINI_API_KEY::" }
+        { name = "GEMINI_API_KEY",       valueFrom = "${var.secrets_arn}:GEMINI_API_KEY::" },
+        { name = "REDIS_URL",            valueFrom = "${var.secrets_arn}:REDIS_URL::" }
       ]
       logConfiguration = {
         logDriver = "awslogs"

@@ -7,6 +7,9 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
+# Install OpenSSL (required by Prisma's query engine)
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 # Install ALL dependencies (including devDeps needed for TypeScript build)
 RUN npm install
 
