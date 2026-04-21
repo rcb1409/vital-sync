@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - 'server/**' # ONLY run when backend code changes!
+  workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
   deploy:
@@ -45,7 +46,8 @@ jobs:
       run: |
         aws ecs describe-task-definition \
           --task-definition production-vitalsync-api \
-          --query taskDefinition > task-definition.json
+          --query taskDefinition \
+          --output json > task-definition.json
 
     - name: Inject new Docker image into Task Definition
       id: task-def
