@@ -23,5 +23,7 @@ RUN npm run build
 # Expose the port the ALB health check expects
 EXPOSE 4000
 
-# Run the compiled JS (not ts-node — production uses the compiled output!)
-CMD ["npm", "start"]
+# Run migrations then start the server.
+# We do this here (not in CI) because RDS is in a private subnet —
+# only containers running inside the VPC can reach it.
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
