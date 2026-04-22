@@ -82,6 +82,11 @@ resource "aws_ecs_task_definition" "api" {
           hostPort      = 4000
         }
       ]
+      # Plain-text env vars — non-sensitive configuration
+      environment = [
+        { name = "NODE_ENV", value = "production" },
+        { name = "PORT",     value = "4000" }
+      ]
       # ECS fetches each key from Secrets Manager and injects it as an env var
       # before the container process starts — app sees normal process.env.DATABASE_URL etc.
       secrets = [
