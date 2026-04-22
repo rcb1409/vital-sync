@@ -112,11 +112,12 @@ resource "aws_ecs_task_definition" "api" {
 
 # 6. The ECS Service (Runs and maintains the Task Definition)
 resource "aws_ecs_service" "api" {
-  name            = "${var.environment}-vitalsync-api"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  name                 = "${var.environment}-vitalsync-api"
+  cluster              = aws_ecs_cluster.main.id
+  task_definition      = aws_ecs_task_definition.api.arn
+  desired_count        = 1
+  launch_type          = "FARGATE"
+  force_new_deployment = true # Automatically redeploy when task definition changes
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
