@@ -74,10 +74,11 @@ resource "aws_acm_certificate" "cert" {
 
 # 7. Deploy Frontend (S3 + CloudFront)
 module "frontend" {
-  source       = "../../modules/s3_cloudfront"
-  environment  = "production"
-  domain_name  = "vitalsync.ravibollepalli.me"
-  alb_dns_name = module.ecs.alb_dns_name # Notice how we use the output from the backend ECS module!
+  source          = "../../modules/s3_cloudfront"
+  environment     = "production"
+  domain_name     = "vitalsync.ravibollepalli.me"
+  certificate_arn = aws_acm_certificate.cert.arn
+  alb_dns_name    = module.ecs.alb_dns_name # Notice how we use the output from the backend ECS module!
 }
 
 # 8. Outputs (These will be printed to your terminal after deployment!)

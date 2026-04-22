@@ -13,6 +13,7 @@ resource "aws_cloudfront_distribution" "cdn" {
   enabled             = true
   is_ipv6_enabled    = true
   default_root_object = "index.html"
+  aliases             = [var.domain_name]
   
   # Note: When we get an SSL cert, we will update this to use your custom domain!
 
@@ -96,7 +97,9 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true 
+    acm_certificate_arn      = var.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   tags = {
