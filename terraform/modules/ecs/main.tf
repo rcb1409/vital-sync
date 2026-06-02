@@ -83,9 +83,16 @@ resource "aws_iam_role_policy" "bedrock_access" {
         "bedrock:InvokeModel",
         "bedrock:InvokeModelWithResponseStream"
       ]
-      # Allow calling Claude Haiku on Bedrock in us-east-1.
-      # Tighten to specific account ID in high-security environments.
-      Resource = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
+      # Model IDs starting with "us." are routed through cross-region
+      # inference profiles, which use a DIFFERENT ARN format than
+      # foundation models:
+      #   foundation-model: arn:aws:bedrock:REGION::foundation-model/MODEL
+      #   inference-profile: arn:aws:bedrock:REGION:ACCOUNT:inference-profile/MODEL
+      # We allow both so the policy works regardless of which path AWS uses.
+      Resource = [
+        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:us-east-1:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
+      ]
     }]
   })
 }
@@ -120,7 +127,8 @@ resource "aws_ecs_task_definition" "api" {
         { name = "PORT",              value = "4000" },
         { name = "AWS_REGION",        value = "us-east-1" },
         { name = "BEDROCK_MODEL_ID",  value = "us.anthropic.claude-haiku-4-5-20251001-v1:0" },
-        { name = "LANGFUSE_BASE_URL", value = "https://cloud.langfuse.com" }
+        # US region Langfuse endpoint — keys are registered on us.cloud.langfuse.com, not cloud.langfuse.com (EU).
+        { name = "LANGFUSE_BASE_URL", value = "https://us.cloud.langfuse.com" }
       ]
       # ECS fetches each key from Secrets Manager and injects it as an env var
       # before the container process starts — app sees normal process.env.DATABASE_URL etc.
