@@ -32,10 +32,22 @@ jobs:
           aws-region: us-east-1
           
       - name: Terraform Init
-        run: terraform init
-        
+        # -reconfigure: tells Terraform to use the S3 backend as configured
+        # without prompting about state migration. CI has no terminal to answer
+        # interactive prompts, so this flag is required.
+        # -input=false: fail immediately if any other prompt appears, never hang.
+        run: terraform init -reconfigure -input=false
+
+      - name: Terraform Plan
+        # Run plan first so we can see exactly what will change before applying.
+        # -input=false: never prompt, fail fast if something is missing.
+        run: terraform plan -input=false
+        env:
+          TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve -input=false
         env:
           TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
