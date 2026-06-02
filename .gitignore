@@ -52,3 +52,14 @@ docker-data/
 *.tfstate.backup
 # Plan output files
 *.tfplan
+
+# -------------------------------------------------------
+# Dev-only tooling (never deployed to production)
+# -------------------------------------------------------
+# Evaluation pipeline — runs locally against Langfuse, never in ECS
+server/eval/
+# One-off test scripts
+server/test-helicone.js
+server/test-langfuse.ts
+# Claude AI worktrees
+.claude/worktrees/

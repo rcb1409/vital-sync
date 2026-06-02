@@ -39,6 +39,8 @@ data "aws_iam_policy_document" "ecs_assume_role" {
   }
 }
 
+# Execution Role — used by ECS *agent* to pull the image and read secrets.
+# This is NOT the same as the task role below.
 resource "aws_iam_role" "execution_role" {
   name               = "${var.environment}-vitalsync-execution-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
@@ -62,6 +64,32 @@ resource "aws_iam_role_policy" "secrets_access" {
   })
 }
 
+# Task Role — assumed by the running container process itself.
+# This gives our application code permission to call AWS services (Bedrock).
+# Distinct from execution_role which is for ECS infra operations.
+resource "aws_iam_role" "task_role" {
+  name               = "${var.environment}-vitalsync-task-role"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
+}
+
+resource "aws_iam_role_policy" "bedrock_access" {
+  name = "${var.environment}-vitalsync-bedrock-policy"
+  role = aws_iam_role.task_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ]
+      # Allow calling Claude Haiku on Bedrock in us-east-1.
+      # Tighten to specific account ID in high-security environments.
+      Resource = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
+    }]
+  })
+}
+
 
 # 5. The Task Definition (The blueprint for our container)
 resource "aws_ecs_task_definition" "api" {
@@ -71,6 +99,9 @@ resource "aws_ecs_task_definition" "api" {
   cpu                      = 256 # 0.25 vCPU
   memory                   = 512 # 512 MB RAM
   execution_role_arn       = aws_iam_role.execution_role.arn
+  # task_role_arn gives the running container permission to call AWS APIs (Bedrock).
+  # Without this, bedrock.InvokeModel will return AccessDeniedException.
+  task_role_arn            = aws_iam_role.task_role.arn
   container_definitions = jsonencode([
     {
       name      = "vitalsync-api"
@@ -82,21 +113,29 @@ resource "aws_ecs_task_definition" "api" {
           hostPort      = 4000
         }
       ]
-      # Plain-text env vars — non-sensitive configuration
+      # Plain-text env vars — non-sensitive configuration.
+      # AWS_REGION and BEDROCK_MODEL_ID are not secrets (safe to see in console).
       environment = [
-        { name = "NODE_ENV", value = "production" },
-        { name = "PORT",     value = "4000" }
+        { name = "NODE_ENV",          value = "production" },
+        { name = "PORT",              value = "4000" },
+        { name = "AWS_REGION",        value = "us-east-1" },
+        { name = "BEDROCK_MODEL_ID",  value = "us.anthropic.claude-haiku-4-5-20251001-v1:0" },
+        { name = "LANGFUSE_BASE_URL", value = "https://cloud.langfuse.com" }
       ]
       # ECS fetches each key from Secrets Manager and injects it as an env var
       # before the container process starts — app sees normal process.env.DATABASE_URL etc.
       secrets = [
-        { name = "DATABASE_URL",         valueFrom = "${var.secrets_arn}:DATABASE_URL::" },
-        { name = "JWT_ACCESS_SECRET",    valueFrom = "${var.secrets_arn}:JWT_ACCESS_SECRET::" },
-        { name = "JWT_REFRESH_SECRET",   valueFrom = "${var.secrets_arn}:JWT_REFRESH_SECRET::" },
-        { name = "STRAVA_CLIENT_ID",     valueFrom = "${var.secrets_arn}:STRAVA_CLIENT_ID::" },
-        { name = "STRAVA_CLIENT_SECRET", valueFrom = "${var.secrets_arn}:STRAVA_CLIENT_SECRET::" },
-        { name = "GEMINI_API_KEY",       valueFrom = "${var.secrets_arn}:GEMINI_API_KEY::" },
-        { name = "REDIS_URL",            valueFrom = "${var.secrets_arn}:REDIS_URL::" }
+        { name = "DATABASE_URL",          valueFrom = "${var.secrets_arn}:DATABASE_URL::" },
+        { name = "JWT_ACCESS_SECRET",     valueFrom = "${var.secrets_arn}:JWT_ACCESS_SECRET::" },
+        { name = "JWT_REFRESH_SECRET",    valueFrom = "${var.secrets_arn}:JWT_REFRESH_SECRET::" },
+        { name = "STRAVA_CLIENT_ID",      valueFrom = "${var.secrets_arn}:STRAVA_CLIENT_ID::" },
+        { name = "STRAVA_CLIENT_SECRET",  valueFrom = "${var.secrets_arn}:STRAVA_CLIENT_SECRET::" },
+        { name = "REDIS_URL",             valueFrom = "${var.secrets_arn}:REDIS_URL::" },
+        # Langfuse observability — optional but recommended in production.
+        # Add these keys to Secrets Manager before running terraform apply.
+        # If missing, Langfuse tracing is silently disabled (app still works).
+        { name = "LANGFUSE_PUBLIC_KEY",   valueFrom = "${var.secrets_arn}:LANGFUSE_PUBLIC_KEY::" },
+        { name = "LANGFUSE_SECRET_KEY",   valueFrom = "${var.secrets_arn}:LANGFUSE_SECRET_KEY::" }
       ]
       logConfiguration = {
         logDriver = "awslogs"
