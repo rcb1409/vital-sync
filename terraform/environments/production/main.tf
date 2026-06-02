@@ -10,6 +10,23 @@ variable "db_password" {
 
 # 1. AWS Provider Setup
 terraform {
+  # Remote state backend — stores terraform.tfstate in S3 instead of locally.
+  # This means both your laptop AND GitHub Actions read/write the SAME state file,
+  # so Terraform always knows what already exists in AWS and never tries to
+  # create duplicate resources.
+  #
+  # DynamoDB table provides "locking" — if two pipelines try to run terraform
+  # apply at the same time, the second one waits instead of corrupting state.
+  #
+  # Bucket and table were created once via AWS CLI (bootstrap step).
+  backend "s3" {
+    bucket         = "vitalsync-terraform-state-806435615853"
+    key            = "production/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "vitalsync-terraform-locks"
+    encrypt        = true
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
