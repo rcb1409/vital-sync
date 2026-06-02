@@ -24,8 +24,14 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
   STRAVA_CLIENT_ID: z.string(),
   STRAVA_CLIENT_SECRET: z.string(),
-  GEMINI_API_KEY: z.string(),
-  HELICONE_API_KEY: z.string().optional(),
+  // AWS Bedrock — credentials come from the standard AWS chain (CLI / env / IAM role).
+  // We only configure region + model ID here.
+  AWS_REGION: z.string().default('us-east-1'),
+  BEDROCK_MODEL_ID: z.string().default('us.anthropic.claude-haiku-4-5-20251001-v1:0'),
+  LANGFUSE_PUBLIC_KEY: z.string().optional(),
+  LANGFUSE_SECRET_KEY: z.string().optional(),
+  LANGFUSE_BASE_URL: z.string().default('https://cloud.langfuse.com'),
+  TAVILY_API_KEY: z.string().optional(),
 
 });
 

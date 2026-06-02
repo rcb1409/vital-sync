@@ -6,6 +6,10 @@
 // you do `npm run dev`.
 // -------------------------------------------------------
 
+// OTEL instrumentation MUST be imported first so the Langfuse
+// span processor is registered before any tracing code runs.
+import './config/instrumentation';
+
 import express from 'express';
 import cors from 'cors';
 import { env } from './config/env';

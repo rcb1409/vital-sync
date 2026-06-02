@@ -17,7 +17,14 @@ export const cacheService = {
     
     // Only cache if there's actually data
     if (fresh !== null && fresh !== undefined) {
-      await redis.set(key, JSON.stringify(fresh), 'EX', ttlSeconds);
+      if (ttlSeconds > 0) {
+        // Store with expiry (e.g. dashboard data, streaks)
+        await redis.set(key, JSON.stringify(fresh), 'EX', ttlSeconds);
+      } else {
+        // Store without expiry — lives until explicitly invalidated
+        // Used for data like aiMemory that shouldn't expire on a timer
+        await redis.set(key, JSON.stringify(fresh));
+      }
     }
     
     return fresh;
