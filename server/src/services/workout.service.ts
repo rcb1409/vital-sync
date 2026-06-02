@@ -1,4 +1,5 @@
 import { prisma } from '../config/database';
+import { Prisma } from '@prisma/client';
 
 interface LogWorkoutInput {
     userId: string;
@@ -12,32 +13,90 @@ interface LogWorkoutInput {
         reps: number;
         weightKg: number;
         rpe?: number;
-        isPr?: boolean;
     }[];
 }
 
-async function logCompletedWorkout(input: LogWorkoutInput) {
-    const workout = await prisma.workout.create({
-        data: {
-            userId: input.userId,
-            name: input.name || 'Workout',
-            startedAt: new Date(input.startedAt),
-            durationMin: input.durationMin,
-            notes: input.notes,
-            sets: {
-                create: input.sets.map((set) => ({
-                    exerciseId: set.exerciseId,
-                    setNumber: set.setNumber,
-                    reps: set.reps,
-                    weightKg: set.weightKg,
-                    rpe: set.rpe,
-                    isPr: set.isPr || false,
-                })),
-            },
+/**
+ * PR Detection Algorithm
+ * For a given exercise and rep count, check if the weight exceeds the
+ * historical max weight at the same or fewer reps.
+ * 
+ * Logic: A set is a PR if weightKg > MAX(weight_kg) FROM workout_sets
+ *        WHERE exercise_id = X AND reps <= Y (same user's workouts only)
+ * 
+ * This means benching 100kg x 5 is a PR even if you've done 100kg x 3 before,
+ * because you've never done that weight at 5 reps.
+ */
+async function detectPR(
+    userId: string,
+    exerciseId: number,
+    reps: number,
+    weightKg: number,
+    tx: Prisma.TransactionClient
+): Promise<boolean> {
+    // Skip PR detection for bodyweight exercises (weight = 0)
+    if (weightKg <= 0) return false;
+
+    // Query the historical max weight for this exercise at the same or fewer reps
+    // We join through workouts to scope by userId
+    const result = await tx.workoutSet.findFirst({
+        where: {
+            exerciseId,
+            reps: { lte: reps },
+            workout: { userId },
         },
-        include: {
-            sets: true,
-        }
+        orderBy: { weightKg: 'desc' },
+        select: { weightKg: true },
+    });
+
+    if (!result) {
+        // First time logging this exercise — it's a PR by definition
+        return true;
+    }
+
+    return weightKg > Number(result.weightKg);
+}
+
+async function logCompletedWorkout(input: LogWorkoutInput) {
+    // Use a transaction so workout + sets + PR flags are all atomic
+    const workout = await prisma.$transaction(async (tx) => {
+        // 1. Create the workout shell first
+        const newWorkout = await tx.workout.create({
+            data: {
+                userId: input.userId,
+                name: input.name || 'Workout',
+                startedAt: new Date(input.startedAt),
+                durationMin: input.durationMin,
+                notes: input.notes,
+            },
+        });
+
+        // 2. Detect PRs and create sets
+        const createdSets = await Promise.all(
+            input.sets.map(async (set) => {
+                const isPr = await detectPR(
+                    input.userId,
+                    set.exerciseId,
+                    set.reps,
+                    set.weightKg,
+                    tx
+                );
+
+                return tx.workoutSet.create({
+                    data: {
+                        workoutId: newWorkout.id,
+                        exerciseId: set.exerciseId,
+                        setNumber: set.setNumber,
+                        reps: set.reps,
+                        weightKg: set.weightKg,
+                        rpe: set.rpe,
+                        isPr,
+                    },
+                });
+            })
+        );
+
+        return { ...newWorkout, sets: createdSets };
     });
 
     return workout;
@@ -46,6 +105,30 @@ async function logCompletedWorkout(input: LogWorkoutInput) {
 async function getUserWorkouts(userId: string) {
     return await prisma.workout.findMany({
         where: { userId },
+        orderBy: { startedAt: 'desc' },
+        include: {
+            sets: {
+                include: {
+                    exercise: true
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Get workouts filtered by date range (used by AI tool).
+ * Replaces the old pattern of loading all workouts + JS filter.
+ */
+async function getUserWorkoutsByDateRange(userId: string, startDate: string, endDate: string) {
+    return await prisma.workout.findMany({
+        where: {
+            userId,
+            startedAt: {
+                gte: new Date(`${startDate}T00:00:00Z`),
+                lte: new Date(`${endDate}T23:59:59Z`),
+            },
+        },
         orderBy: { startedAt: 'desc' },
         include: {
             sets: {
@@ -132,6 +215,8 @@ async function getUserTemplates(userId: string) {
 export const workoutService = {
     logCompletedWorkout,
     getUserWorkouts,
+    getUserWorkoutsByDateRange,
     getTemplateWithHistoricalWeights,
     getUserTemplates,
+    detectPR,
 };

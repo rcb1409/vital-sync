@@ -5,25 +5,71 @@ import { aiService } from '../services/ai.service';
 
 const router = Router();
 
-// We use the `authenticate` middleware to guarantee that whoever is
-// calling this route is legally logged in. It gives us `req.user.userId`.
+// ==========================================
+// POST /api/ai/chat (Non-streaming, kept for backwards compatibility)
+// ==========================================
 router.post('/chat', authenticate, async (req, res, next) => {
     try {
-        const { message, history } = req.body;
+        const { message, history, sessionId } = req.body;
 
         if (!message) {
             return res.status(400).json({ error: 'Message is required' });
         }
 
-        // Send the user's ID and their message deep into the Context Engine
-        const aiResponseText = await aiService.chatWithCoach(req.user!.userId, message, history);
-
-        // Send the AI's reply back to the React app
-        res.json({ reply: aiResponseText });
-
+        const { reply } = await aiService.chatWithCoach(req.user!.userId, message, history, sessionId);
+        res.json({ reply });
     } catch (error) {
-        // If Google Gemini crashes or rate limits, the global error handler catches it
         next(error);
+    }
+});
+
+// ==========================================
+// POST /api/ai/chat/stream (SSE Streaming)
+// Streams the AI response token-by-token with status indicators.
+//
+// SSE event types:
+//   - "status":  Tool execution indicators (e.g., "Fetching workout history...")
+//   - "chunk":   Text chunk from the AI response (append to message)
+//   - "done":    Stream complete
+//   - "error":   Error occurred
+// ==========================================
+router.post('/chat/stream', authenticate, async (req, res) => {
+    const { message, history, sessionId } = req.body;
+
+    if (!message) {
+        return res.status(400).json({ error: 'Message is required' });
+    }
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering
+    res.flushHeaders();
+
+    try {
+        await aiService.chatWithCoachStream(
+            req.user!.userId,
+            message,
+            history || [],
+            // onChunk: stream text tokens to the client
+            (text: string) => {
+                res.write(`event: chunk\ndata: ${JSON.stringify({ text })}\n\n`);
+            },
+            // onStatus: stream status updates (tool execution indicators)
+            (status: string) => {
+                res.write(`event: status\ndata: ${JSON.stringify({ status })}\n\n`);
+            },
+            sessionId
+        );
+
+        // Signal completion
+        res.write(`event: done\ndata: {}\n\n`);
+        res.end();
+    } catch (error) {
+        console.error('SSE stream error:', error);
+        res.write(`event: error\ndata: ${JSON.stringify({ error: 'Stream failed' })}\n\n`);
+        res.end();
     }
 });
 

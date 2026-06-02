@@ -40,7 +40,7 @@ model User {
   dailyHabits      DailyHabit[]
   stravaAccount    StravaAccount?
   runActivities    RunActivity[]
-  aiConversations  AiConversation[]
+
   exercises        Exercise[]       // user-created custom exercises
 
   @@map("users")
@@ -253,26 +253,4 @@ model RunActivity {
   @@map("run_activities")
 }
 
-// =====================================================
-// AI CONVERSATIONS (with context pipeline traces)
-// =====================================================
-model AiConversation {
-  id               String   @id @default(uuid())
-  userId           String   @map("user_id")
-  question         String   @db.Text
-  response         String   @db.Text
-  contextPlan      Json     @map("context_plan")      // intent classification result
-  contextSnapshot  Json     @map("context_snapshot")   // assembled context per domain
-  webSearchResults Json?    @map("web_search_results") // Tavily results if triggered
-  contextTokens    Int      @map("context_tokens")
-  totalTokens      Int      @map("total_tokens")
-  durationMs       Int      @map("duration_ms")
-  domainsFetched   Int      @map("domains_fetched")
-  createdAt        DateTime @default(now()) @map("created_at")
 
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt(sort: Desc)])
-  @@map("ai_conversations")
-}

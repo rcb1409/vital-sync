@@ -22,6 +22,10 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     text: "Hey! I'm your VitalSync AI Coach. I have live access to your dashboard data. What's on your mind today?"
   }]);
 
+  // Generate a random session ID when the component mounts.
+  // All messages sent while this drawer is alive belong to the same session.
+  const [sessionId] = useState(() => Math.random().toString(36).substring(2, 10));
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -55,7 +59,8 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
         parts: [{ text: m.text }]
       }))
 
-      const res = await api.post('/ai/chat', { message: userText, history: windowedHistory });
+      // Send sessionId to backend so Langfuse groups these turns together
+      const res = await api.post('/ai/chat', { message: userText, history: windowedHistory, sessionId });
 
       // Add the AI's reply to the UI
       setMessages(prev => [...prev, {

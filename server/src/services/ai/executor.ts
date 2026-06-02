@@ -1,17 +1,25 @@
 import { workoutService } from '../workout.service';
 import { nutritionService } from '../nutrition.service';
-import { FunctionCall } from '@google/generative-ai';
+import { metricsService } from '../metrics.service';
 import { prisma } from '@/config/database';
+import { env } from '@/config/env';
+
+/**
+ * Provider-agnostic shape for a tool invocation.
+ * Both Gemini's `FunctionCall` and Anthropic's `tool_use` block can be mapped
+ * to this — keeps the executor independent of which LLM produced the call.
+ */
+export type ToolCall = { name: string; args: Record<string, any> };
 
 /**
  * Classifies an error into either:
- * - Semantic (Gemini passed bad args — it can retry with corrected values)
- * - System   (infrastructure failure — Gemini cannot fix it, sanitize for user safety)
+ * - Semantic (model passed bad args — it can retry with corrected values)
+ * - System   (infrastructure failure — model cannot fix it, sanitize for user safety)
  */
 export function classifyError(err: unknown): { success: false; error: string; canRetry: boolean } {
   const message = (err as Error).message ?? '';
 
-  // Semantic errors: bad arguments that Gemini caused and can correct
+  // Semantic errors: bad arguments the model caused and can correct
   const isSemanticError =
     message.includes('Invalid') ||
     message.includes('required') ||
@@ -27,7 +35,7 @@ export function classifyError(err: unknown): { success: false; error: string; ca
     };
   }
 
-  // System errors: DB, network, server — log full error server-side, send generic message to Gemini
+  // System errors: DB, network, server — log full error server-side, send generic message to model
   console.error('[Tool System Error — not exposed to user]', err);
   return {
     success: false,
@@ -36,11 +44,11 @@ export function classifyError(err: unknown): { success: false; error: string; ca
   };
 }
 
-export async function executeToolCall(userId: string, call: FunctionCall) {
+export async function executeToolCall(userId: string, call: ToolCall) {
   if (call.name === "fetchHistoricalWorkouts") {
     const { startDate, endDate } = call.args as { startDate: string, endDate: string };
 
-    // Validate args before hitting the DB — produces a semantic error Gemini can fix
+    // Validate args before hitting the DB — produces a semantic error the model can fix
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
       throw new Error(`Invalid date format. Expected YYYY-MM-DD, received startDate="${startDate}", endDate="${endDate}".`);
@@ -48,11 +56,8 @@ export async function executeToolCall(userId: string, call: FunctionCall) {
 
     console.log(`Executing Tool on Server -> Fetching workouts from ${startDate} to ${endDate}`);
 
-    const allWorkouts = await workoutService.getUserWorkouts(userId);
-    const requestedWorkouts = allWorkouts.filter((w: any) => {
-      const dateString = new Date(w.startedAt).toISOString().split('T')[0];
-      return dateString >= startDate && dateString <= endDate;
-    });
+    // Use the date-filtered DB query instead of loading everything + JS filter
+    const requestedWorkouts = await workoutService.getUserWorkoutsByDateRange(userId, startDate, endDate);
 
     return { retrievedWorkouts: requestedWorkouts };
   }
@@ -67,7 +72,7 @@ export async function executeToolCall(userId: string, call: FunctionCall) {
       mealType: "breakfast" | "lunch" | "dinner" | "snack";
     };
 
-    // Validate mealType before hitting the DB — produces a semantic error Gemini can fix
+    // Validate mealType before hitting the DB — produces a semantic error the model can fix
     const validMealTypes = ['breakfast', 'lunch', 'dinner', 'snack'];
     if (!validMealTypes.includes(args.mealType)) {
       throw new Error(`Invalid mealType "${args.mealType}". Must be one of: breakfast, lunch, dinner, snack.`);
@@ -143,6 +148,66 @@ export async function executeToolCall(userId: string, call: FunctionCall) {
     };
   }
 
+
+  if (call.name === "logWeight") {
+    const { weightKg } = call.args as { weightKg: number };
+    
+    if (typeof weightKg !== 'number' || weightKg <= 0 || weightKg > 500) {
+      throw new Error(`Invalid weight. Expected a positive number (in kg), received ${weightKg}.`);
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    console.log(`Executing Tool on Server -> Logging weight ${weightKg}kg for ${todayStr}`);
+
+    await metricsService.logWeight({
+      userId,
+      weightKg,
+      date: todayStr
+    });
+
+    return { 
+      success: true, 
+      message: `Successfully logged weight as ${weightKg}kg for today.` 
+    };
+  }
+
+  if (call.name === "webSearch") {
+    const { query } = call.args as { query: string };
+    console.log(`Executing Tool on Server -> Web Search for: "${query}"`);
+
+    if (!env.TAVILY_API_KEY) {
+      throw new Error("TAVILY_API_KEY is not configured. Ask the user to configure it in their environment.");
+    }
+
+    try {
+      const response = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          api_key: env.TAVILY_API_KEY,
+          query: query,
+          search_depth: "basic",
+          include_answer: true,
+          max_results: 3
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Tavily API responded with status ${response.status}`);
+      }
+
+      const data = await response.json() as any;
+      return { 
+        success: true, 
+        answer: data.answer,
+        results: data.results.map((r: any) => ({ title: r.title, content: r.content, url: r.url }))
+      };
+    } catch (e: any) {
+      throw new Error(`Failed to perform web search: ${e.message}`);
+    }
+  }
 
   throw new Error(`Unknown tool call: ${call.name}`);
 }

@@ -7,19 +7,52 @@ export const typeDefs = `#graphql
     waterMl: Int!
   }
 
-
   type Streaks {
     hydration: Int!
     alcoholFree: Int!
   }
 
-    type DashboardSummary {
+  # ---- Chart Data Types ----
+
+  type WeightDataPoint {
+    date: String!
+    rawWeight: Float!
+    emaWeight: Float!
+  }
+
+  type CalorieDataPoint {
+    date: String!
+    calories: Int!
+    target: Int!
+  }
+
+  type MacroBreakdown {
+    protein: Float!
+    carbs: Float!
+    fat: Float!
+  }
+
+  type VolumeDataPoint {
+    muscleGroup: String!
+    volume: Float!
+  }
+
+  type DashboardCharts {
+    weightTrend: [WeightDataPoint!]!
+    dailyCalories: [CalorieDataPoint!]!
+    macroBreakdown: MacroBreakdown!
+    weeklyVolume: [VolumeDataPoint!]!
+  }
+
+  type DashboardSummary {
     todayWorkouts: Int!
     macros: MacroTotals!
     streaks: Streaks!
     currentWeightEma: Float
+    charts: DashboardCharts!
   }
- type Query {
-    getDashboardSummary: DashboardSummary!
+
+  type Query {
+    getDashboardSummary(rangeDays: Int): DashboardSummary!
   }
 `;
