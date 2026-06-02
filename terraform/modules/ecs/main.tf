@@ -1,5 +1,5 @@
 # ECS module — runs the Express API server on Fargate.
-# Last infra change: Bedrock inference-profile IAM fix + Langfuse US endpoint.
+# Last infra change: Expanded Bedrock IAM to all US regions (us-east-1/2, us-west-2) for cross-region inference profiles.
 
 # 1. The ECS Cluster
 resource "aws_ecs_cluster" "main" {
@@ -86,15 +86,25 @@ resource "aws_iam_role_policy" "bedrock_access" {
         "bedrock:InvokeModel",
         "bedrock:InvokeModelWithResponseStream"
       ]
-      # Model IDs starting with "us." are routed through cross-region
-      # inference profiles, which use a DIFFERENT ARN format than
-      # foundation models:
+      # Model IDs starting with "us." are cross-region inference profiles.
+      # AWS internally routes these requests through ANY US region (us-east-1,
+      # us-east-2, us-west-2), so the IAM policy must allow InvokeModel on
+      # resources in ALL three regions — otherwise you get a 403 when the
+      # request happens to land in us-east-2 or us-west-2.
+      #
+      # ARN formats:
       #   foundation-model: arn:aws:bedrock:REGION::foundation-model/MODEL
       #   inference-profile: arn:aws:bedrock:REGION:ACCOUNT:inference-profile/MODEL
-      # We allow both so the policy works regardless of which path AWS uses.
       Resource = [
+        # us-east-1
         "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
-        "arn:aws:bedrock:us-east-1:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
+        "arn:aws:bedrock:us-east-1:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        # us-east-2 (cross-region routing can land here)
+        "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:us-east-2:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        # us-west-2 (cross-region routing can land here)
+        "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:us-west-2:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
       ]
     }]
   })
