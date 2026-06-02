@@ -33,11 +33,12 @@ jobs:
           aws-region: us-east-1
           
       - name: Terraform Init
-        # S3 backend is already configured and state is already in S3.
-        # CI starts fresh every run (no cached .terraform/ or local state),
-        # so there is nothing to migrate — plain init is sufficient.
-        # -input=false: fail immediately if any prompt appears, never hang.
-        run: terraform init -input=false
+        # Root cause: S3 state has no backend metadata recorded, so Terraform
+        # treats it as "came from local" and asks to migrate every run.
+        # Answering "no" keeps the existing S3 state intact (correct).
+        # After first successful apply, state is rewritten with S3 metadata
+        # and this migration prompt will stop appearing.
+        run: echo "no" | terraform init -migrate-state
 
       - name: Terraform Plan
         # Shows exactly what will change before apply runs.
