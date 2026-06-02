@@ -1,6 +1,7 @@
 name: Deploy Infrastructure (Terraform)
 
 on:
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
   push:
     branches: [ "main" ]
     paths:

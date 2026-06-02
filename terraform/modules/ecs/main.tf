@@ -1,3 +1,6 @@
+# ECS module — runs the Express API server on Fargate.
+# Last infra change: Bedrock inference-profile IAM fix + Langfuse US endpoint.
+
 # 1. The ECS Cluster
 resource "aws_ecs_cluster" "main" {
     name = "${var.environment}-vitalsync-cluster"
