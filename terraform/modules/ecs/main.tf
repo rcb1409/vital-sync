@@ -135,7 +135,9 @@ resource "aws_ecs_task_definition" "api" {
         # Add these keys to Secrets Manager before running terraform apply.
         # If missing, Langfuse tracing is silently disabled (app still works).
         { name = "LANGFUSE_PUBLIC_KEY",   valueFrom = "${var.secrets_arn}:LANGFUSE_PUBLIC_KEY::" },
-        { name = "LANGFUSE_SECRET_KEY",   valueFrom = "${var.secrets_arn}:LANGFUSE_SECRET_KEY::" }
+        { name = "LANGFUSE_SECRET_KEY",   valueFrom = "${var.secrets_arn}:LANGFUSE_SECRET_KEY::" },
+        # Tavily — web search tool for the AI coach. Optional: if missing, web_search is disabled.
+        { name = "TAVILY_API_KEY",        valueFrom = "${var.secrets_arn}:TAVILY_API_KEY::" }
       ]
       logConfiguration = {
         logDriver = "awslogs"
