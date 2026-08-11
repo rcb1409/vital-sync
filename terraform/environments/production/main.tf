@@ -19,13 +19,20 @@ terraform {
   # apply at the same time, the second one waits instead of corrupting state.
   #
   # Bucket and table were created once via AWS CLI (bootstrap step).
-  backend "s3" {
-    bucket         = "vitalsync-terraform-state-806435615853"
-    key            = "production/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "vitalsync-terraform-locks"
-    encrypt        = true
-  }
+  #
+  # TEARDOWN: disabled. The S3 migration never completed — the object at
+  # production/terraform.tfstate does not exist (HeadObject returns 404, not
+  # 403, so the bucket is readable and simply empty). The only real state is
+  # the local terraform.tfstate restored from terraform.tfstate.backup
+  # (serial 48). Using local state to run the destroy.
+  #
+  # backend "s3" {
+  #   bucket         = "vitalsync-terraform-state-806435615853"
+  #   key            = "production/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   dynamodb_table = "vitalsync-terraform-locks"
+  #   encrypt        = true
+  # }
 
   required_providers {
     aws = {
