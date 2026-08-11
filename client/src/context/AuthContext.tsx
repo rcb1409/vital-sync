@@ -6,11 +6,9 @@ interface User {
   email: string;
   name: string;
   goals: {
-    weightKg: number;
-    calories: number;
-    proteinG: number;
-    sleepHours: number;
-    waterMl: number;
+    target_weight?: number;
+    calorie_target?: number;
+    protein_target?: number;
   };
   aiMemory?: { category: string; fact: string }[];
 }
@@ -36,7 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
   });
 
-  // On mount, check if there's a token and fetch user profile
   useEffect(() => {
     const initAuth = async () => {
       const accessToken = localStorage.getItem('accessToken');
@@ -44,27 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState({ user: null, isAuthenticated: false, isLoading: false });
         return;
       }
-
       try {
-        // The api interceptor will automatically attach the token
-        // and handle refreshing it if it's expired
         const { data } = await api.get('/users/profile');
-        setState({
-          user: data.user,
-          isAuthenticated: true,
-          isLoading: false, // Loading finished
-        });
-      } catch (error) {
-        console.error('Auth initialization failed', error);
-        // Interceptor handles the redirect if refresh fails completely
-        setState({
-          user: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
+        setState({ user: data.user, isAuthenticated: true, isLoading: false });
+      } catch {
+        setState({ user: null, isAuthenticated: false, isLoading: false });
       }
     };
-
     initAuth();
   }, []);
 
@@ -75,11 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch (e) {
-      console.error('Logout request failed', e);
-    } finally {
+    try { await api.post('/auth/logout'); } catch { /* ignore */ }
+    finally {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       setState({ user: null, isAuthenticated: false, isLoading: false });
@@ -87,9 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateUser = (user: User) => {
-    setState((prev) => ({ ...prev, user }));
-  };
+  const updateUser = (user: User) => setState((prev) => ({ ...prev, user }));
 
   return (
     <AuthContext.Provider value={{ ...state, login, logout, updateUser }}>
@@ -100,8 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }

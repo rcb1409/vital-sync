@@ -55,8 +55,8 @@ export function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     try {
       const validHistory = messages.filter(m => m.id !== 'intro' && !m.text.includes("❌"));
       const windowedHistory = validHistory.slice(-10).map(m => ({
-        role: m.role == 'coach' ? 'model' : 'user',
-        parts: [{ text: m.text }]
+        role: m.role === 'coach' ? 'assistant' : 'user',
+        content: m.text,
       }))
 
       // Send sessionId to backend so Langfuse groups these turns together
