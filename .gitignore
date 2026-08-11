@@ -11,6 +11,12 @@ node_modules/
 .env.production
 
 # -------------------------------------------------------
+# Service account keys (GCP credentials — NEVER commit)
+# -------------------------------------------------------
+server/secrets/
+*.json.key
+
+# -------------------------------------------------------
 # Build outputs (generated files, not source code)
 # -------------------------------------------------------
 dist/
@@ -27,6 +33,7 @@ server/prisma/migrations/**/migration_lock.toml
 .DS_Store
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 
@@ -56,8 +63,6 @@ docker-data/
 # -------------------------------------------------------
 # Dev-only tooling (never deployed to production)
 # -------------------------------------------------------
-# Evaluation pipeline — runs locally against Langfuse, never in ECS
-server/eval/
 # One-off test scripts
 server/test-helicone.js
 server/test-langfuse.ts
