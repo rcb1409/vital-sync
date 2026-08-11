@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { nutritionService } from '../services/nutrition.service';
+import { analyzeFoodPhoto } from '../services/nutritionVision.service';
 import { authenticate } from '../middleware/authenticate';
 import { asyncHandler } from '../middleware/errorHandler';
 import { logNutritionSchema, getNutritionByDateSchema } from '../validators/nutrition.validator';
@@ -37,6 +38,25 @@ router.get(
       input.query.date
     );
     res.json(result); // returns { logs: [...], totals: {...} }
+  })
+);
+
+// ==========================================
+// POST /api/nutrition/analyze-photo
+// Accepts a base64-encoded food photo and returns AI macro estimates.
+// The image is analyzed but NEVER stored.
+// Body: { imageBase64: string, mimeType?: string }
+// ==========================================
+router.post(
+  '/analyze-photo',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const { imageBase64, mimeType = 'image/jpeg' } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'imageBase64 is required' });
+    }
+    const items = await analyzeFoodPhoto(imageBase64, mimeType);
+    res.json({ items });
   })
 );
 
