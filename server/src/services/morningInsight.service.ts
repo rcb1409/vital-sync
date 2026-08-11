@@ -21,7 +21,7 @@
 // -------------------------------------------------------
 
 import { prisma } from '@/config/database';
-import { bedrock } from '@/config/bedrock';
+import { anthropic } from '@/config/anthropic';
 import { env } from '@/config/env';
 import type { HealthAnomaly } from './healthAnalysis.service';
 import type { HealthSummaryData } from './healthSummary.service';
@@ -153,8 +153,8 @@ ${dataLines}`;
   // ── Call Claude (single shot — no tool loop needed) ───────────────────────
   let message = '';
   try {
-    const response = await bedrock.messages.create({
-      model:      env.BEDROCK_MODEL_ID,
+    const response = await anthropic.messages.create({
+      model:      env.ANTHROPIC_MODEL_ID,
       max_tokens: 200,
       messages:   [{ role: 'user', content: prompt }],
     });

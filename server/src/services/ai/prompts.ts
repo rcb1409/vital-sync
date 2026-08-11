@@ -235,7 +235,7 @@ NOTE: For detailed historical data, use the fetchHealthHistory tool.
 
 /**
  * Result of loading the system prompt.
- * - `systemInstruction` is the fully-compiled string sent to Bedrock.
+ * - `systemInstruction` is the fully-compiled string sent to the API.
  * - `prompts` exposes the Langfuse prompt clients (or null on fallback) so
  *   callers can link them to generations via `trace.generation({ prompt })`.
  * - `versions` is a flat record useful for trace metadata.

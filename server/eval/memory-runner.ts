@@ -8,7 +8,7 @@
 // Run with: npx tsx eval/memory-runner.ts
 //
 // Prerequisites:
-//   - AWS Bedrock credentials in .env (for the extractor LLM)
+//   - ANTHROPIC_API_KEY in .env (for the extractor LLM)
 //   - Langfuse keys in .env (for score push)
 //   - NO database or Redis needed
 // -------------------------------------------------------
@@ -18,7 +18,7 @@ import { otelSdk } from '../src/config/instrumentation';
 import { LangfuseClient } from '@langfuse/client';
 import dotenv from 'dotenv';
 import { extractMemory, MemoryFact } from '../src/services/ai/memory';
-import { EVAL_CONFIG, JUDGE_MODEL_ID, bedrock } from './config';
+import { EVAL_CONFIG, JUDGE_MODEL_ID, anthropic } from './config';
 import { memoryGoldenDataset, memoryDatasetStats, MemoryEvalCase } from './datasets/memory-golden-v1';
 import type { TextBlock } from '@anthropic-ai/sdk/resources/messages';
 
@@ -33,7 +33,7 @@ const langfuse = new LangfuseClient({
 // ── Version metadata (tracked per run) ───────────────────────────────────────
 const RUN_METADATA = {
   dataset: 'memory-golden-v1',
-  extractorModel: process.env.BEDROCK_MODEL_ID || 'unknown',
+  extractorModel: process.env.ANTHROPIC_MODEL_ID || 'unknown',
   judgeModel: JUDGE_MODEL_ID,
   runAt: new Date().toISOString(),
 };
@@ -144,7 +144,7 @@ Score from 0 to 1:
 
 Respond with ONLY a JSON object: {"score": <number>, "reasoning": "<brief explanation>"}`;
 
-  const response = await bedrock.messages.create({
+  const response = await anthropic.messages.create({
     model: JUDGE_MODEL_ID,
     max_tokens: 512,
     messages: [{ role: 'user', content: prompt }],

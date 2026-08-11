@@ -22,10 +22,11 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string(),
   JWT_ACCESS_EXPIRY: z.string().default('15m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
-  // AWS Bedrock — credentials come from the standard AWS chain (CLI / env / IAM role).
-  // We only configure region + model ID here.
-  AWS_REGION: z.string().default('us-east-1'),
-  BEDROCK_MODEL_ID: z.string().default('us.anthropic.claude-haiku-4-5-20251001-v1:0'),
+  // Anthropic API — the SDK reads ANTHROPIC_API_KEY itself; it is declared here
+  // only so a missing key is visible at startup rather than at the first chat.
+  // Optional so the app still boots for non-AI features without it.
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL_ID: z.string().default('claude-haiku-4-5'),
   LANGFUSE_PUBLIC_KEY: z.string().optional(),
   LANGFUSE_SECRET_KEY: z.string().optional(),
   LANGFUSE_BASE_URL: z.string().default('https://cloud.langfuse.com'),

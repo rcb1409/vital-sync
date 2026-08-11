@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { env } from '@/config/env';
 import { prisma } from '@/config/database';
 import { redis } from '@/config/redis';
-import { bedrock } from '@/config/bedrock';
+import { anthropic } from '@/config/anthropic';
 import { getMemoryExtractionPrompt } from './prompts';
 
 /** Redis key for a user's long-term memory facts. */
@@ -73,8 +73,8 @@ export async function extractMemory(
   const fullDateStr = `${dayName}, ${todayStr}`;
   const extractionPrompt = getMemoryExtractionPrompt(userMessage, aiResponse, currentMemory, fullDateStr);
 
-  const response = await bedrock.messages.create({
-    model: env.BEDROCK_MODEL_ID,
+  const response = await anthropic.messages.create({
+    model: env.ANTHROPIC_MODEL_ID,
     max_tokens: 1024,
     tools: [memoryTool],
     tool_choice: { type: 'tool', name: 'save_memory_facts' },

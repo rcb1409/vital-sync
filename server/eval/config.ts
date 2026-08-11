@@ -6,22 +6,23 @@
 // eval run is stamped with exactly what produced it.
 // -------------------------------------------------------
 
-import AnthropicBedrock from '@anthropic-ai/bedrock-sdk';
+import Anthropic from '@anthropic-ai/sdk';
 import { LangfuseClient } from '@langfuse/client';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// --- Bedrock client (shared with main app, same credentials) ---
-export const bedrock = new AnthropicBedrock({
-  awsRegion: process.env.AWS_REGION || 'us-east-1',
-});
+// --- Anthropic client (shared with main app, same ANTHROPIC_API_KEY) ---
+export const anthropic = new Anthropic();
 
 // --- Model IDs (pinned, dated — never use floating aliases in evals) ---
-export const COACH_MODEL_ID = process.env.BEDROCK_MODEL_ID
-  || 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+// Dated forms rather than the `claude-haiku-4-5` / `claude-sonnet-4-5` aliases,
+// so a run stays reproducible if an alias is ever repointed.
+export const COACH_MODEL_ID = process.env.ANTHROPIC_MODEL_ID
+  || 'claude-haiku-4-5-20251001';
 
-export const JUDGE_MODEL_ID = 'us.anthropic.claude-sonnet-4-5-20250929-v1:0';
+// The judge is deliberately a stronger model than the coach it grades.
+export const JUDGE_MODEL_ID = 'claude-sonnet-4-5-20250929';
 
 // --- Langfuse client for eval traces + scores ---
 export const langfuse = new LangfuseClient({

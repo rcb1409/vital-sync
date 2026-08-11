@@ -10,7 +10,7 @@
 // -------------------------------------------------------
 
 import type { TextBlock } from '@anthropic-ai/sdk/resources/messages';
-import { bedrock, JUDGE_MODEL_ID } from './config';
+import { anthropic, JUDGE_MODEL_ID } from './config';
 
 interface JudgeResult {
   score: number;    // 0–1
@@ -18,7 +18,7 @@ interface JudgeResult {
 }
 
 async function callJudge(prompt: string): Promise<JudgeResult> {
-  const response = await bedrock.messages.create({
+  const response = await anthropic.messages.create({
     model: JUDGE_MODEL_ID,
     max_tokens: 512,
     messages: [{ role: 'user', content: prompt }],

@@ -5,7 +5,7 @@ import type {
   ToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages';
 import { env } from '@/config/env';
-import { bedrock } from '@/config/bedrock';
+import { anthropic } from '@/config/anthropic';
 import { coachTools } from './tools';
 import { executeToolCall, classifyError } from './executor';
 
@@ -16,10 +16,10 @@ export interface AgentLoopResult {
 }
 
 /**
- * The ReAct agent loop — talks to Bedrock (Claude) and calls tools.
+ * The ReAct agent loop — talks to the Anthropic API (Claude) and calls tools.
  *
  * Each iteration:
- *   1. Send `messages` to Bedrock with tool definitions and system prompt.
+ *   1. Send `messages` to the API with tool definitions and system prompt.
  *   2. Push the assistant reply (text + tool_use blocks) onto `messages`.
  *   3. If stop_reason === 'end_turn' → extract text, return.
  *   4. If stop_reason === 'tool_use' → execute every tool_use in parallel,
@@ -37,8 +37,8 @@ export async function runAgentLoop(
   const toolsCalled: string[] = [];
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const response = await bedrock.messages.create({
-      model: env.BEDROCK_MODEL_ID,
+    const response = await anthropic.messages.create({
+      model: env.ANTHROPIC_MODEL_ID,
       max_tokens: 2048,
       system: systemPrompt,
       tools: coachTools,
@@ -46,7 +46,7 @@ export async function runAgentLoop(
     });
 
     // Always append the assistant's full content — the next turn's request
-    // must include it so Bedrock can correlate tool_use IDs with tool_result IDs.
+    // must include it so the API can correlate tool_use IDs with tool_result IDs.
     messages.push({ role: 'assistant', content: response.content });
 
     // 'end_turn', 'max_tokens', or 'stop_sequence' — all mean we're done.

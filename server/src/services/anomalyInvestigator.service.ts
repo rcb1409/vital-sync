@@ -21,7 +21,7 @@ import type {
   ToolUseBlock,
   ToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages';
-import { bedrock } from '@/config/bedrock';
+import { anthropic } from '@/config/anthropic';
 import { env } from '@/config/env';
 import { investigationTools } from './ai/tools';
 import { executeToolCall, classifyError } from './ai/executor';
@@ -116,8 +116,8 @@ async function investigateAnomaly(
   for (let turn = 0; turn < MAX_INVESTIGATION_TURNS; turn++) {
     turnsUsed++;
 
-    const response = await bedrock.messages.create({
-      model: env.BEDROCK_MODEL_ID,
+    const response = await anthropic.messages.create({
+      model: env.ANTHROPIC_MODEL_ID,
       max_tokens: 2048,
       system: systemPrompt,
       tools: investigationTools,

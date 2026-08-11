@@ -1,12 +1,12 @@
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 
 /**
- * Tool definitions for the VitalSync coach agent (Anthropic Claude on Bedrock).
+ * Tool definitions for the VitalSync coach agent (Anthropic Claude).
  *
  * Each tool's `input_schema` is plain JSON Schema. The model reads `description`
  * to decide when to call the tool, then constructs an `input` object matching
  * the schema. Server-side validation happens in `executor.ts` — these schemas
- * are advisory to the model, not enforced by Bedrock.
+ * are advisory to the model, not enforced by the API.
  *
  * NOTE: tool execution lives in `executor.ts`.
  */

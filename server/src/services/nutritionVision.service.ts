@@ -1,7 +1,7 @@
 /**
  * nutritionVision.service.ts
  *
- * Uses Claude via AWS Bedrock to analyse a food photo and return
+ * Uses Claude via the Anthropic API to analyse a food photo and return
  * structured macro estimates.  The image is never persisted.
  *
  * Workflow:
@@ -11,7 +11,7 @@
  *   4. Return the parsed items to the caller
  */
 
-import { bedrock } from '@/config/bedrock';
+import { anthropic } from '@/config/anthropic';
 import { env }    from '@/config/env';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -71,8 +71,8 @@ export async function analyzeFoodPhoto(
   imageBase64: string,
   mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg',
 ): Promise<FoodItem[]> {
-  const response = await bedrock.messages.create({
-    model:      env.BEDROCK_MODEL_ID,
+  const response = await anthropic.messages.create({
+    model:      env.ANTHROPIC_MODEL_ID,
     max_tokens: 1024,
     system:     SYSTEM_PROMPT,
     tools:      [RECORD_TOOL],
