@@ -2,10 +2,12 @@ import fs from 'fs';
 import path from 'path';
 
 import { nutritionService } from '../nutrition.service';
-import { metricsService } from '../metrics.service';
 import { userService } from '../user.service';
 import { prisma } from '@/config/database';
 import { langfuseClient } from '@/config/langfuse';
+import { healthSummaryService } from '../healthSummary.service';
+import { healthAnalysisService, type RecentHealthData, type HealthBaselines } from '../healthAnalysis.service';
+import { healthMetricsService, type SleepData } from '../healthMetrics.service';
 
 // Cache prompt files at startup (used as fallback when Langfuse is offline)
 let cachedPersona = '';
@@ -38,16 +40,17 @@ function loadPrompts() {
 loadPrompts();
 
 /**
- * Builds the AI coach's context from today's data only.
+ * Builds the AI coach's context from today's data and weekly health summary.
  *
- * Design decision: Only today's snapshot is always-injected.
+ * Includes:
+ *   - Today's nutrition and workout count
+ *   - Last night's sleep with computed sleep score
+ *   - Weekly health summary (recovery score, trends, training load)
+ *   - Active health anomalies/alerts
+ *   - User goals and long-term memory facts
+ *
  * Historical/trend data (7d, 30d) is fetched on-demand via tools
- * (getProgressReport, fetchHistoricalWorkouts) only when the user asks.
- *
- * This keeps the context lean:
- *   - 4 DB queries per chat message (down from 9)
- *   - ~300-400 tokens of context (vs ~800+ with trend data)
- *   - Redis cache can serve today's nutrition + streaks for free
+ * (fetchHealthHistory) only when the user asks for specifics.
  */
 export async function buildUserContext(userId: string) {
   const today = new Date();
@@ -56,23 +59,67 @@ export async function buildUserContext(userId: string) {
   const todayStart = new Date(`${todayStr}T00:00:00Z`);
   const todayEnd = new Date(`${todayStr}T23:59:59Z`);
 
-  // 4 focused queries, all in parallel
-  const [nutrition, streaks, profile, todayWorkoutCount] = await Promise.all([
+  const sixteenHoursAgo = new Date(Date.now() - 16 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  // Fetch all data in parallel
+  const [
+    nutrition,
+    profile,
+    todayWorkoutCount,
+    lastSleepPoint,
+    weeklySummary,
+    recentSleep,
+    recentHRV,
+    recentRHR,
+    recentExercise,
+    recentSteps,
+  ] = await Promise.all([
     // Today's food log totals
     nutritionService.getNutritionForDate(userId, todayStr),
-
-    // Hydration + alcohol-free streaks
-    metricsService.getStreaks(userId),
 
     // User goals + long-term memory facts
     userService.getProfile(userId),
 
-    // Count today's workouts with a date filter (not loading all workouts)
-    prisma.workout.count({
-      where: {
-        userId,
-        startedAt: { gte: todayStart, lte: todayEnd },
-      },
+    // Count today's Google Health exercise sessions
+    prisma.healthDataPoint.count({
+      where: { userId, dataType: 'exercise', recordedAt: { gte: todayStart, lte: todayEnd } },
+    }),
+
+    // Most recent sleep session (ended within last 16 hrs = last night)
+    prisma.healthDataPoint.findFirst({
+      where:   { userId, dataType: 'sleep', recordedAt: { gte: sixteenHoursAgo } },
+      orderBy: { recordedAt: 'desc' },
+    }),
+
+    // Weekly health summary (pre-computed)
+    healthSummaryService.getHealthSummary(userId, 'weekly'),
+
+    // Recent data for anomaly detection (last 7 days)
+    prisma.healthDataPoint.findMany({
+      where: { userId, dataType: 'sleep', recordedAt: { gte: sevenDaysAgo } },
+      orderBy: { recordedAt: 'desc' },
+      take: 7,
+    }),
+    prisma.healthDataPoint.findMany({
+      where: { userId, dataType: 'hrv', recordedAt: { gte: sevenDaysAgo } },
+      orderBy: { recordedAt: 'desc' },
+      take: 7,
+    }),
+    prisma.healthDataPoint.findMany({
+      where: { userId, dataType: 'resting_hr', recordedAt: { gte: sevenDaysAgo } },
+      orderBy: { recordedAt: 'desc' },
+      take: 7,
+    }),
+    prisma.healthDataPoint.findMany({
+      where: { userId, dataType: 'exercise', recordedAt: { gte: sevenDaysAgo } },
+      orderBy: { recordedAt: 'desc' },
+      take: 14,
+    }),
+    prisma.healthDataPoint.findMany({
+      where: { userId, dataType: 'steps', recordedAt: { gte: sevenDaysAgo } },
+      orderBy: { recordedAt: 'desc' },
+      take: 7,
     }),
   ]);
 
@@ -102,6 +149,63 @@ export async function buildUserContext(userId: string) {
       }).join('\n')
     : '- None currently.';
 
+  // Format last night's sleep with score
+  const lastSleepValue = lastSleepPoint?.value as SleepData | null;
+  const lastSleepMinutes = lastSleepValue?.durationMinutes ?? null;
+  const lastSleepScore = lastSleepValue
+    ? healthMetricsService.computeSleepScoreSafe(lastSleepValue)
+    : null;
+  const lastSleepStr = lastSleepMinutes
+    ? `${Math.floor(lastSleepMinutes / 60)}h ${lastSleepMinutes % 60}m (score: ${lastSleepScore ?? 'N/A'}/100)`
+    : 'No data yet';
+
+  // Build recovery status section
+  let recoverySection = '';
+  if (weeklySummary) {
+    recoverySection = `
+RECOVERY STATUS (7-day):
+  - Recovery Score: ${weeklySummary.latestRecoveryScore}/100
+  - HRV (avg): ${weeklySummary.avgHRV > 0 ? `${Math.round(weeklySummary.avgHRV)} ms` : 'N/A'}
+  - Resting HR (avg): ${weeklySummary.avgRestingHR > 0 ? `${Math.round(weeklySummary.avgRestingHR)} bpm` : 'N/A'}
+  - Recovery Trend: ${weeklySummary.recoveryTrend}`;
+  }
+
+  // Build weekly training section
+  let trainingSection = '';
+  if (weeklySummary) {
+    const load = weeklySummary.weeklyTrainingLoad;
+    trainingSection = `
+WEEKLY TRAINING (7-day):
+  - Workouts: ${weeklySummary.workoutCount}
+  - Total Minutes: ${load?.totalMinutes ?? 0}
+  - Avg Sleep Score: ${weeklySummary.avgSleepScore > 0 ? `${Math.round(weeklySummary.avgSleepScore)}/100` : 'N/A'}
+  - Sleep Trend: ${weeklySummary.sleepTrend}
+  - Avg Daily Steps: ${weeklySummary.avgDailySteps > 0 ? weeklySummary.avgDailySteps.toLocaleString() : 'N/A'}`;
+  }
+
+  // Detect anomalies
+  const recentData: RecentHealthData = {
+    sleep: recentSleep.map(s => s.value as unknown as SleepData),
+    hrv: recentHRV.map(h => h.value as any),
+    rhr: recentRHR.map(r => r.value as any),
+    exercise: recentExercise.map(e => e.value as any),
+    steps: recentSteps.map(s => s.value as any),
+  };
+
+  const baselines: HealthBaselines = {
+    sleepScore: weeklySummary?.avgSleepScore ?? 0,
+    hrv: weeklySummary?.avgHRV ?? 0,
+    rhr: weeklySummary?.avgRestingHR ?? 0,
+    dailySteps: weeklySummary?.avgDailySteps ?? 0,
+  };
+
+  const anomalies = healthAnalysisService.detectAnomaliesSafe(recentData, baselines);
+  const anomalySection = anomalies.length > 0
+    ? `
+HEALTH ALERTS:
+${anomalies.map(a => `  - [${a.severity.toUpperCase()}] ${a.message}`).join('\n')}`
+    : '';
+
   return `
 --- LIVE USER CONTEXT (Today is ${dayName}, ${todayStr}) ---
 
@@ -109,25 +213,22 @@ KNOWN LONG-TERM FACTS ABOUT THIS USER:
 ${formattedMemory}
 
 USER DAILY GOALS:
-  - Calories: ${goals.calories ?? 2500} kcal
-  - Protein: ${goals.proteinG ?? 150} g
-  - Water: ${goals.waterMl ?? 3000} ml
-  - Sleep: ${goals.sleepHours ?? 8} hrs
+  - Calories: ${goals.calorie_target ?? goals.calories ?? 2500} kcal
+  - Protein:  ${goals.protein_target ?? goals.proteinG ?? 150} g
+  - Target weight: ${goals.target_weight ?? 'not set'} kg
 
 TODAY'S ACTUALS:
-  - Calories consumed: ${nutrition.totals.calories} kcal
-  - Protein consumed: ${Math.round(nutrition.totals.proteinG)} g
-  - Carbs: ${Math.round(nutrition.totals.carbsG)} g
-  - Fat: ${Math.round(nutrition.totals.fatG)} g
-  - Water: ${(nutrition.totals as any).waterMl ?? 0} ml
+  - Calories consumed:  ${nutrition.totals.calories} kcal
+  - Protein consumed:   ${Math.round(nutrition.totals.proteinG)} g
+  - Carbs:              ${Math.round(nutrition.totals.carbsG)} g
+  - Fat:                ${Math.round(nutrition.totals.fatG)} g
   - Workouts completed: ${todayWorkoutCount}
+  - Last night's sleep: ${lastSleepStr}
+${recoverySection}
+${trainingSection}
+${anomalySection}
 
-CURRENT STREAKS:
-  - Hydration streak: ${streaks.hydration} days
-  - Alcohol-free streak: ${streaks.alcoholFree} days
-
-NOTE: For weekly trends, historical workouts, or progress reports,
-use the available tools — do not guess or make up trend data.
+NOTE: For detailed historical data, use the fetchHealthHistory tool.
 ---------------------------------------------------
   `.trim();
 }
@@ -240,7 +341,6 @@ ${contextString}
 /**
  * Prompt for the separate, focused Memory Extractor LLM call.
  * This runs AFTER the main agent has already replied to the user.
- * It has NO tools registered, so responseMimeType: 'application/json' works perfectly.
  */
 export const getMemoryExtractionPrompt = (
   userMessage: string,

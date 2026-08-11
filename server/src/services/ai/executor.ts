@@ -1,14 +1,10 @@
-import { workoutService } from '../workout.service';
 import { nutritionService } from '../nutrition.service';
 import { metricsService } from '../metrics.service';
 import { prisma } from '@/config/database';
 import { env } from '@/config/env';
+import { healthMetricsService } from '../healthMetrics.service';
 
-/**
- * Provider-agnostic shape for a tool invocation.
- * Both Gemini's `FunctionCall` and Anthropic's `tool_use` block can be mapped
- * to this — keeps the executor independent of which LLM produced the call.
- */
+/** Shape for a tool invocation from Anthropic's `tool_use` block. */
 export type ToolCall = { name: string; args: Record<string, any> };
 
 /**
@@ -45,34 +41,68 @@ export function classifyError(err: unknown): { success: false; error: string; ca
 }
 
 export async function executeToolCall(userId: string, call: ToolCall) {
-  if (call.name === "fetchHistoricalWorkouts") {
-    const { startDate, endDate } = call.args as { startDate: string, endDate: string };
 
-    // Validate args before hitting the DB — produces a semantic error the model can fix
+  // ── fetchHealthHistory ──────────────────────────────────────────────────────
+  // Queries the HealthDataPoint table (synced from Google Health) for activity,
+  // sleep, HRV, resting HR, VO2 max, or steps data in a given date range.
+  if (call.name === 'fetchHealthHistory') {
+    const { dataType, startDate, endDate } = call.args as {
+      dataType: 'exercise' | 'sleep' | 'hrv' | 'resting_hr' | 'vo2_max' | 'steps' | 'all';
+      startDate: string;
+      endDate: string;
+    };
+
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
       throw new Error(`Invalid date format. Expected YYYY-MM-DD, received startDate="${startDate}", endDate="${endDate}".`);
     }
 
-    console.log(`Executing Tool on Server -> Fetching workouts from ${startDate} to ${endDate}`);
+    const validTypes = ['exercise', 'sleep', 'hrv', 'resting_hr', 'vo2_max', 'steps', 'all'];
+    if (!validTypes.includes(dataType)) {
+      throw new Error(`Invalid dataType "${dataType}". Must be one of: ${validTypes.join(', ')}.`);
+    }
 
-    // Use the date-filtered DB query instead of loading everything + JS filter
-    const requestedWorkouts = await workoutService.getUserWorkoutsByDateRange(userId, startDate, endDate);
+    console.log(`Executing Tool on Server -> fetchHealthHistory: type=${dataType} from ${startDate} to ${endDate}`);
 
-    return { retrievedWorkouts: requestedWorkouts };
+    const where: any = {
+      userId,
+      recordedAt: {
+        gte: new Date(`${startDate}T00:00:00Z`),
+        lte: new Date(`${endDate}T23:59:59Z`),
+      },
+    };
+    if (dataType !== 'all') {
+      where.dataType = dataType;
+    }
+
+    const dataPoints = await prisma.healthDataPoint.findMany({
+      where,
+      orderBy: { recordedAt: 'desc' },
+      take: 100,
+    });
+
+    // Flatten the value JSON into each data point for easier consumption
+    const flattenedPoints = dataPoints.map(dp => ({
+      id: dp.id,
+      dataType: dp.dataType,
+      recordedAt: dp.recordedAt.toISOString(),
+      ...(dp.value as Record<string, unknown>),
+    }));
+
+    return { dataPoints: flattenedPoints, count: dataPoints.length };
   }
 
-  if (call.name === "logFood") {
+  // ── logFood ─────────────────────────────────────────────────────────────────
+  if (call.name === 'logFood') {
     const args = call.args as {
       foodName: string;
       calories: number;
       proteinG: number;
       carbsG: number;
       fatG: number;
-      mealType: "breakfast" | "lunch" | "dinner" | "snack";
+      mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
     };
 
-    // Validate mealType before hitting the DB — produces a semantic error the model can fix
     const validMealTypes = ['breakfast', 'lunch', 'dinner', 'snack'];
     if (!validMealTypes.includes(args.mealType)) {
       throw new Error(`Invalid mealType "${args.mealType}". Must be one of: breakfast, lunch, dinner, snack.`);
@@ -95,63 +125,10 @@ export async function executeToolCall(userId: string, call: ToolCall) {
     return { success: true, message: `Successfully logged ${args.foodName} to database.` };
   }
 
-  if (call.name === "searchExercises") {
-    const { muscleGroup } = call.args as { muscleGroup: string };
-    const validMuscles = ["chest", "back", "shoulders", "biceps", "triceps", "legs", "core", "cardio"];
-    if (!validMuscles.includes(muscleGroup)) {
-      throw new Error(`Invalid muscleGroup "${muscleGroup}". Must be one of: ${validMuscles.join(', ')}.`);
-    }
-    console.log(`Executing Tool on Server -> Searching exercises for: ${muscleGroup}`);
-
-    const exercises = await prisma.exercise.findMany({
-      where: { muscleGroup: muscleGroup as any },
-      select: { id: true, name: true, equipment: true }
-    });
-    return { exercises }
-
-  }
-
-  if (call.name === "createWorkoutTemplate") {
-    // Notice we extract the complex array including restSeconds
-    const { templateName, exercises } = call.args as {
-      templateName: string,
-      exercises: { exerciseId: number, sets: number, reps: number, restSeconds: number }[]
-    };
-
-    if (!Array.isArray(exercises) || exercises.length === 0) {
-      throw new Error(`Invalid exercises array. Must provide an array of at least one exercise.`);
-    }
-
-    console.log(`Executing Tool on Server -> Creating template "${templateName}" with ${exercises.length} exercises`);
-
-    // Map into the JSON format Prisma will save
-    const exercisesJson = exercises.map(ex => ({
-      exercise_id: ex.exerciseId,
-      sets: ex.sets,
-      reps: ex.reps,
-      rest_seconds: ex.restSeconds || 120,
-      weight: 0
-    }));
-
-    const newTemplate = await prisma.workoutTemplate.create({
-      data: {
-        userId: userId,
-        name: templateName,
-        exercises: exercisesJson
-      }
-    });
-
-    return { 
-      success: true, 
-      templateId: newTemplate.id,
-      message: `Successfully created template '${templateName}'. Structural template only (weights left null for live UI tracking).`
-    };
-  }
-
-
-  if (call.name === "logWeight") {
+  // ── logWeight ────────────────────────────────────────────────────────────────
+  if (call.name === 'logWeight') {
     const { weightKg } = call.args as { weightKg: number };
-    
+
     if (typeof weightKg !== 'number' || weightKg <= 0 || weightKg > 500) {
       throw new Error(`Invalid weight. Expected a positive number (in kg), received ${weightKg}.`);
     }
@@ -165,30 +142,29 @@ export async function executeToolCall(userId: string, call: ToolCall) {
       date: todayStr
     });
 
-    return { 
-      success: true, 
-      message: `Successfully logged weight as ${weightKg}kg for today.` 
+    return {
+      success: true,
+      message: `Successfully logged weight as ${weightKg}kg for today.`
     };
   }
 
-  if (call.name === "webSearch") {
+  // ── webSearch ────────────────────────────────────────────────────────────────
+  if (call.name === 'webSearch') {
     const { query } = call.args as { query: string };
     console.log(`Executing Tool on Server -> Web Search for: "${query}"`);
 
     if (!env.TAVILY_API_KEY) {
-      throw new Error("TAVILY_API_KEY is not configured. Ask the user to configure it in their environment.");
+      throw new Error('TAVILY_API_KEY is not configured. Ask the user to configure it in their environment.');
     }
 
     try {
-      const response = await fetch("https://api.tavily.com/search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+      const response = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           api_key: env.TAVILY_API_KEY,
-          query: query,
-          search_depth: "basic",
+          query,
+          search_depth: 'basic',
           include_answer: true,
           max_results: 3
         })
@@ -199,8 +175,8 @@ export async function executeToolCall(userId: string, call: ToolCall) {
       }
 
       const data = await response.json() as any;
-      return { 
-        success: true, 
+      return {
+        success: true,
         answer: data.answer,
         results: data.results.map((r: any) => ({ title: r.title, content: r.content, url: r.url }))
       };
@@ -209,5 +185,94 @@ export async function executeToolCall(userId: string, call: ToolCall) {
     }
   }
 
+  // ── fetchNutritionHistory ──────────────────────────────────────────────────
+  if (call.name === 'fetchNutritionHistory') {
+    const args = call.args as { startDate: string; endDate: string };
+    return executeNutritionHistoryTool(userId, args);
+  }
+
+  // ── getUserGoals ───────────────────────────────────────────────────────────
+  if (call.name === 'getUserGoals') {
+    return executeGetUserGoalsTool(userId);
+  }
+
   throw new Error(`Unknown tool call: ${call.name}`);
+}
+
+// ── fetchNutritionHistory ─────────────────────────────────────────────────────
+// Queries the NutritionLog table for food intake data in a given date range.
+export async function executeNutritionHistoryTool(userId: string, args: { startDate: string; endDate: string }) {
+  const { startDate, endDate } = args;
+
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    throw new Error(`Invalid date format. Expected YYYY-MM-DD, received startDate="${startDate}", endDate="${endDate}".`);
+  }
+
+  console.log(`Executing Tool on Server -> fetchNutritionHistory: from ${startDate} to ${endDate}`);
+
+  const logs = await prisma.nutritionLog.findMany({
+    where: {
+      userId,
+      date: {
+        gte: new Date(`${startDate}T00:00:00Z`),
+        lte: new Date(`${endDate}T23:59:59Z`),
+      },
+    },
+    orderBy: { date: 'desc' },
+  });
+
+  // Group by date and calculate daily totals
+  const dailyTotals: Record<string, { calories: number; proteinG: number; carbsG: number; fatG: number; meals: string[] }> = {};
+
+  for (const log of logs) {
+    const dateKey = log.date.toISOString().split('T')[0];
+    if (!dailyTotals[dateKey]) {
+      dailyTotals[dateKey] = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, meals: [] };
+    }
+    dailyTotals[dateKey].calories += log.calories;
+    dailyTotals[dateKey].proteinG += Number(log.proteinG);
+    dailyTotals[dateKey].carbsG += Number(log.carbsG);
+    dailyTotals[dateKey].fatG += Number(log.fatG);
+    dailyTotals[dateKey].meals.push(`${log.mealType}: ${log.foodName} (${log.calories} cal)`);
+  }
+
+  return {
+    dailyTotals,
+    totalDays: Object.keys(dailyTotals).length,
+    totalLogs: logs.length,
+  };
+}
+
+// ── getUserGoals ──────────────────────────────────────────────────────────────
+// Fetches the user's fitness goals from the User table.
+export async function executeGetUserGoalsTool(userId: string) {
+  console.log(`Executing Tool on Server -> getUserGoals for user ${userId}`);
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { goals: true },
+  });
+
+  if (!user || !user.goals) {
+    return {
+      goals: null,
+      message: 'No goals have been set for this user.',
+    };
+  }
+
+  const goals = user.goals as Record<string, any>;
+
+  return {
+    goals: {
+      dailyCalorieTarget: goals.dailyCalorieTarget ?? null,
+      dailyProteinTarget: goals.dailyProteinTarget ?? null,
+      dailyStepsTarget: goals.dailyStepsTarget ?? null,
+      sleepHoursTarget: goals.sleepHoursTarget ?? null,
+      weeklyWorkoutTarget: goals.weeklyWorkoutTarget ?? null,
+      weightGoal: goals.weightGoal ?? null,
+      todayRecommendation: goals.todayRecommendation ?? null,
+      adjustedCalorieTarget: goals.adjustedCalorieTarget ?? null,
+    },
+  };
 }

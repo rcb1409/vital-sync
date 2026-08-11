@@ -1,24 +1,28 @@
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 
 /**
- * Tool definitions for the VitalSync coach agent (Anthropic shape).
+ * Tool definitions for the VitalSync coach agent (Anthropic Claude on Bedrock).
  *
  * Each tool's `input_schema` is plain JSON Schema. The model reads `description`
  * to decide when to call the tool, then constructs an `input` object matching
  * the schema. Server-side validation happens in `executor.ts` — these schemas
  * are advisory to the model, not enforced by Bedrock.
  *
- * NOTE: tool execution lives in `executor.ts` and is provider-independent —
- * the same DB-touching code runs whether we call from Gemini, Anthropic, etc.
+ * NOTE: tool execution lives in `executor.ts`.
  */
 
-export const fetchHistoricalWorkoutsTool: Tool = {
-  name: 'fetchHistoricalWorkouts',
+export const fetchHealthHistoryTool: Tool = {
+  name: 'fetchHealthHistory',
   description:
-    "Fetches the user's past workouts between a specific start and end date. Use this tool ONLY when the user asks about historical workouts outside of today.",
+    "Fetches the user's health data from Google Health for a specific date range. Use this when the user asks about past workouts, exercise sessions, sleep history, HRV trends, resting heart rate, VO2 max, or step counts outside of today.",
   input_schema: {
     type: 'object',
     properties: {
+      dataType: {
+        type: 'string',
+        enum: ['exercise', 'sleep', 'hrv', 'resting_hr', 'vo2_max', 'steps', 'all'],
+        description: "The type of health data to fetch: 'exercise' for workouts, 'sleep' for sleep sessions, 'hrv' for heart rate variability, 'resting_hr' for resting heart rate, 'vo2_max' for cardio fitness, 'steps' for daily step counts, or 'all' for everything.",
+      },
       startDate: {
         type: 'string',
         description: "The start date in YYYY-MM-DD format (e.g., '2026-03-30').",
@@ -28,7 +32,7 @@ export const fetchHistoricalWorkoutsTool: Tool = {
         description: "The end date in YYYY-MM-DD format (e.g., '2026-04-05').",
       },
     },
-    required: ['startDate', 'endDate'],
+    required: ['dataType', 'startDate', 'endDate'],
   },
 };
 
@@ -51,60 +55,6 @@ export const logFoodTool: Tool = {
       },
     },
     required: ['foodName', 'calories', 'proteinG', 'carbsG', 'fatG', 'mealType'],
-  },
-};
-
-export const searchExercisesTool: Tool = {
-  name: 'searchExercises',
-  description:
-    'Searches the database for exercises targeting a specific muscle group. Use this to find correct exercise IDs before creating templates or routines.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      muscleGroup: {
-        type: 'string',
-        enum: ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'legs', 'core', 'cardio'],
-        description: 'Must be exactly one of: chest, back, shoulders, biceps, triceps, legs, core, cardio',
-      },
-    },
-    required: ['muscleGroup'],
-  },
-};
-
-export const createWorkoutTemplateTool: Tool = {
-  name: 'createWorkoutTemplate',
-  description:
-    'Creates and saves a reusable workout template. Use your fitness knowledge to determine the appropriate sets and reps based on the user\'s goal. In your chat response, briefly explain to the user why you chose these exercises, AND include a Markdown link so they can view the template, exactly like this: [View Template](/workouts/templates/{templateId}) .',
-  input_schema: {
-    type: 'object',
-    properties: {
-      templateName: {
-        type: 'string',
-        description: "Name of the workout template (e.g., 'Back & Arms Hypertrophy')",
-      },
-      exercises: {
-        type: 'array',
-        description: 'Array of chosen exercises with their custom sets, reps, and rest periods.',
-        items: {
-          type: 'object',
-          properties: {
-            exerciseId: {
-              type: 'number',
-              description: 'The database ID of the exercise retrieved from searchExercises',
-            },
-            sets: { type: 'number', description: 'Number of working sets' },
-            reps: { type: 'number', description: 'Target reps per set' },
-            restSeconds: {
-              type: 'number',
-              description:
-                'Suggested rest time between sets in seconds (e.g., 60-90 for hypertrophy, 120-180 for strength)',
-            },
-          },
-          required: ['exerciseId', 'sets', 'reps', 'restSeconds'],
-        },
-      },
-    },
-    required: ['templateName', 'exercises'],
   },
 };
 
@@ -137,11 +87,46 @@ export const webSearchTool: Tool = {
   },
 };
 
+export const fetchNutritionHistoryTool: Tool = {
+  name: 'fetchNutritionHistory',
+  description:
+    "Fetches the user's nutrition logs (food intake) for a date range. Returns daily totals for calories, protein, carbs, and fat. Use this to investigate if poor nutrition might be contributing to recovery issues.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      startDate: {
+        type: 'string',
+        description: "The start date in YYYY-MM-DD format (e.g., '2026-03-30').",
+      },
+      endDate: {
+        type: 'string',
+        description: "The end date in YYYY-MM-DD format (e.g., '2026-04-05').",
+      },
+    },
+    required: ['startDate', 'endDate'],
+  },
+};
+
+export const getUserGoalsTool: Tool = {
+  name: 'getUserGoals',
+  description:
+    "Fetches the user's fitness goals including calorie targets, protein targets, sleep goals, and activity goals. Use this to compare actual data against the user's personal targets.",
+  input_schema: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+};
+
 export const coachTools: Tool[] = [
-  fetchHistoricalWorkoutsTool,
+  fetchHealthHistoryTool,
   logFoodTool,
-  searchExercisesTool,
-  createWorkoutTemplateTool,
   logWeightTool,
   webSearchTool,
+];
+
+export const investigationTools: Tool[] = [
+  fetchHealthHistoryTool,
+  fetchNutritionHistoryTool,
+  getUserGoalsTool,
 ];
