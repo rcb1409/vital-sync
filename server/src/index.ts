@@ -16,12 +16,12 @@ import { env } from './config/env';
 import { prisma } from './config/database';
 import { redis } from './config/redis';
 import { errorHandler } from './middleware/errorHandler';
-import workoutRoutes from './routes/workout.routes'
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import { typeDefs } from './graphql/schema';
 import { resolvers } from './graphql/resolvers';
 import { authenticate } from './middleware/authenticate';
+import { createSleepRecoveryWorker } from './workers/sleepRecovery.worker';
 import aiRoutes from './routes/ai.routes';
 import userRoutes from './routes/user.routes';
 
@@ -34,7 +34,7 @@ app.use(cors({
     : 'http://localhost:5173',
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // 10mb to support base64 food photos
 
 // --------------- Health Check ---------------
 app.get('/api/health', async (_req, res) => {
@@ -62,19 +62,16 @@ app.get('/api/health', async (_req, res) => {
 
 // --------------- Routes ---------------
 import authRoutes from './routes/auth.routes';
-import exerciseRoutes from './routes/exercise.routes';
 import nutritionRoutes from './routes/nutrition.routes';
 import metricsRoutes from './routes/metrics.routes';
-import stravaRoutes from './routes/strava.routes';
-import runRoutes from './routes/run.routes';
+import googleHealthRoutes from './routes/googleHealth.routes';
+import insightsRoutes from './routes/insights.routes';
 
 app.use('/api/auth', authRoutes);
-app.use('/api/exercises', exerciseRoutes);
-app.use('/api/workouts', workoutRoutes);
 app.use('/api/nutrition', nutritionRoutes);
 app.use('/api/metrics', metricsRoutes);
-app.use('/api/strava', stravaRoutes);
-app.use('/api/runs', runRoutes);
+app.use('/api/google-health', googleHealthRoutes);
+app.use('/api/insights', insightsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/users', userRoutes);
 
@@ -113,6 +110,15 @@ async function startServer() {
     `);
     console.log(`🚀 GraphQL ready at http://localhost:${PORT}/graphql`);
   });
+
+  // ── Background Workers ────────────────────────────────────────────────────
+  // The sleep recovery worker watches the job queue and processes recovery
+  // jobs (fetch HRV/RHR → calculate scores → generate insight → adjust goals).
+  // It must start AFTER the server is listening so all services are ready.
+  const sleepWorker = createSleepRecoveryWorker();
+  console.log('⚙️  Sleep recovery worker started');
+
+  return sleepWorker;
 }
 
 startServer();
@@ -124,5 +130,4 @@ process.on('SIGTERM', async () => {
   redis.disconnect();
   process.exit(0);
 });
-
 export default app;
