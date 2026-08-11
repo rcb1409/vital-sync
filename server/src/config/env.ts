@@ -22,8 +22,6 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string(),
   JWT_ACCESS_EXPIRY: z.string().default('15m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
-  STRAVA_CLIENT_ID: z.string(),
-  STRAVA_CLIENT_SECRET: z.string(),
   // AWS Bedrock — credentials come from the standard AWS chain (CLI / env / IAM role).
   // We only configure region + model ID here.
   AWS_REGION: z.string().default('us-east-1'),
@@ -32,6 +30,10 @@ const envSchema = z.object({
   LANGFUSE_SECRET_KEY: z.string().optional(),
   LANGFUSE_BASE_URL: z.string().default('https://cloud.langfuse.com'),
   TAVILY_API_KEY: z.string().optional(),
+  // Google Health OAuth — needed for proactive coach feature
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_HEALTH_WEBHOOK_SECRET: z.string().optional(),
 
 });
 
